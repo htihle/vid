@@ -35,8 +35,15 @@ def do_mcmc_sampling(lnprob, vid, parameters, data, temp_range, n_vox, n_walkers
     # main run
     sampler.run_mcmc(pos, n_samples, rstate0=state)
 
-    print("Mean acceptance fraction:", np.mean(sampler.acceptance_fraction))
+    values = np.zeros(ndim)
+    for i in range(ndim):
+        values[i] = corner.quantile(sampler.flatchain[:, i], [0.5])
+    print values
 
+    print("Mean acceptance fraction:", np.mean(sampler.acceptance_fraction))
+    if autosave:
+        np.save('autosaves/values' + time_string + comment, values)
+        np.save('autosaves/samples' + time_string + 'samp' + str(n_samples * n_walkers) + comment, sampler.flatchain)
     fig = corner.corner(sampler.flatchain,
                         labels=[r"$\phi_* / 10^{-10}$", r"$L_* / 10^{6}$ ", r"$\alpha$", r"$L_{min} / 10^{2}$ ",
                                 r"$\sigma_G$"], show_titles=True
@@ -44,16 +51,10 @@ def do_mcmc_sampling(lnprob, vid, parameters, data, temp_range, n_vox, n_walkers
     fig.savefig('ConstraintsFromVID' + comment + '.pdf')
     plt.show()
 
-    values = np.zeros(ndim)
-    for i in range(ndim):
-        values[i] = corner.quantile(sampler.flatchain[:, i], [0.5])
-    print values
 
     plt.loglog(x, PofT / dtemp_times_n_vox, x, vid.calculate_vid(values, x))
     plt.show()
-    if autosave:
-        np.save('autosaves/values' + time_string + comment, values)
-        np.save('autosaves/samples' + time_string + 'samp' + str(n_samples * n_walkers) + comment, sampler.flatchain)
+
     print "Autocorrelation time:", sampler.get_autocorr_time(c=2)
     return 0
 
