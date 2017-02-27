@@ -7,8 +7,12 @@ import ConfigParser
 import VID
 
 name = sys.argv[1]
+value_string = name[:10] + "values" + name[17:36] +".npy"
+
+values = np.load(value_string)
 
 samples = np.load(name)
+
 
 fig = corner.corner(samples, labels=[r"$\phi_* / 10^{-10}$",
                                      r"$L_* / 10^{6}$ ",
@@ -46,5 +50,5 @@ cube = np.load("CO_658_li15_fid_tcube_binned.npz")
 
 B_i = np.histogram((cube.f.t.flatten() + 1e-12) * 1e-6, bins=temp_range)[0]
 
-plt.loglog(x, B_i / dtemp_times_n_vox, x, vid.calculate_vid(fid_val, x))
+plt.loglog(x, B_i / dtemp_times_n_vox, x, vid.calculate_vid(values, x))
 plt.show()
