@@ -6,7 +6,10 @@ import ConfigParser
 
 import VID
 
+
+# Load autosaves
 name = sys.argv[1]
+cubename = sys.argv[2]
 value_string = name[:10] + "values" + name[17:36] +".npy"
 
 values = np.load(value_string)
@@ -30,7 +33,7 @@ def full_phi(luminosity, fiducial_values, fiducial_units):
         -luminosity / fid_val[1] - fid_val[3] / luminosity)
 
 
-n_vox = 25 * 25 * 100
+
 
 n = 100
 
@@ -42,13 +45,13 @@ fid_units = [1e-10, 1e6, 1, 1e2, 1]
 
 vid = VID.VoxelIntensityDistribution(full_phi, fid_val, fid_units, config)
 
-temp_range = np.logspace(-8, -4, n + 1)
-
+temp_range = np.logspace(-9, -4, n + 1)
+cube = np.load(cubename)
+B_i = np.histogram((cube.f.t.flatten() + 1e-12) * 1e-6, bins=temp_range)[0]
+n_vox = len(cube.f.t.flatten())
 dtemp_times_n_vox = (temp_range[1:] - temp_range[:-1]) * n_vox
 x = (temp_range[1:] + temp_range[:-1]) / 2
-cube = np.load("CO_658_li15_fid_tcube_binned.npz")
 
-B_i = np.histogram((cube.f.t.flatten() + 1e-12) * 1e-6, bins=temp_range)[0]
 
 plt.loglog(x, B_i / dtemp_times_n_vox, x, vid.calculate_vid(values, x))
 plt.show()

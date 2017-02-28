@@ -42,7 +42,7 @@ def do_mcmc_sampling(lnprob, vid, parameters, data, temp_range, n_vox, n_walkers
 
     print("Mean acceptance fraction:", np.mean(sampler.acceptance_fraction))
     if autosave:
-        np.save('autosaves/values' + time_string + comment, values)
+        np.save('autosaves/values' + time_string, values)
         np.save('autosaves/samples' + time_string + 'samp' + str(n_samples * n_walkers) + comment, sampler.flatchain)
     fig = corner.corner(sampler.flatchain,
                         labels=[r"$\phi_* / 10^{-10}$", r"$L_* / 10^{6}$ ", r"$\alpha$", r"$L_{min} / 10^{2}$ ",
@@ -74,7 +74,7 @@ myVID = VID.VoxelIntensityDistribution(full_phi, fid_val, fid_units, config)
 
 n = 100
 
-binsList = np.logspace(-8, -4, n + 1)
+binsList = np.logspace(np.log10(5e-9), -4, n + 1)
 box = np.load('tcube.npz')
 flatBox = box.f.t.flatten()
 
