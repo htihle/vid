@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import scipy.integrate as integrate
 import scipy.interpolate as interpolate
 import numpy.fft as fft
+import ast
 
 import tools
 
@@ -14,7 +15,8 @@ class VoxelIntensityDistribution:
     mpc = 3.086e22  # 1 mpc = 3.086e22 m
     solar_lum = 3.848e26  # W
 
-    def __init__(self, lum_func, fiducial_values, fiducial_units, config):
+    def __init__(self, config):
+        self.config = config
         self.mode = config.get('Grid', 'mode')
         temp_max = float(config.get('Grid', 'temp_max'))
         self.n_temp = int(config.get('Grid', 'n_temp'))
@@ -39,58 +41,74 @@ class VoxelIntensityDistribution:
         z_min = self.nu_em / freq_max - 1
         z_max = self.nu_em / freq_min - 1
         self.z_mid = (z_max + z_min) / 2
-
-        self.fiducial_values = np.array(fiducial_values).astype(float)
-        self.fiducial_units = np.array(fiducial_units).astype(float)
-        self.lum_func = lum_func
-        self.density = self.integral(self.lum_func, 1e1, 1e8, args=(self.fiducial_values, self.fiducial_units))
         self.vol_vox, self.x_lt = self.get_x_and_vol()
-        print "Sources per voxel:", self.density * self.vol_vox
-
-    # plt.loglog(self.temp_range,self.lum_func(self.temp_range*self.vol_vox/self.x_lt,self.fiducial_values,self.fiducial_units))
-    # plt.ylabel(r'$\lum_func$',fontsize=20)
-    # plt.show()
-
 
     def get_x_and_vol(self):
         comoving_distance = self.speed_of_light * integrate.quad(self.get_one_over_hubble, 0, self.z_mid)[0]
         vol_vox = 1.0 / (self.mpc ** 3) * (comoving_distance * self.angular_res) ** 2 * self.speed_of_light * \
                   self.get_one_over_hubble(self.z_mid) * (1 + self.z_mid) ** 2 * self.delta_nu / self.nu_em
         print "Volume of 1 voxel: %g [(mpc/h)^3]" % vol_vox
-        x_lt = self.h ** 2 * self.solar_lum * 1.0 / (self.mpc ** 3) * self.speed_of_light ** 3 * (1 + self.z_mid) ** 2 / \
-               (8 * np.pi * self.k_boltz * self.nu_em ** 3) * self.get_one_over_hubble(self.z_mid)
+        x_lt = self.h ** 2 * self.solar_lum * 1.0 / (self.mpc ** 3) * self.speed_of_light ** 3 \
+               * (1 + self.z_mid) ** 2 / (8 * np.pi * self.k_boltz * self.nu_em ** 3) \
+               * self.get_one_over_hubble(self.z_mid)
         return vol_vox, x_lt  # both given in (mpc/h)^3
 
     def get_one_over_hubble(self, z):
         hubble = 3.241e-18 * np.sqrt(self.omega_m * (1 + z) ** 3 + self.omega_l)  # in units of h/s
         return 1.0 / hubble
 
-    def calculate_vid(self, local_values, x_array=None):
-        density_local = self.integral(self.lum_func, 1e1, 1e8, args=(local_values, self.fiducial_units))
+    def calculate_vid(self, lum_func=None, parameters=None, temp_array=None):
+        if parameters is None:
+            sigma_g = 1
+            if lum_func is None:
+                arguments = np.array(ast.literal_eval(self.config.get("Luminosity", "arguments"))).astype(float)
+
+        elif len(parameters[:-1]) == 0:
+            sigma_g = parameters[-1]
+            if lum_func is None:
+                arguments = np.array(ast.literal_eval(self.config.get("Luminosity", "arguments"))).astype(float)
+        else:
+            sigma_g = parameters[-1]
+            arguments = parameters[:-1]
+
+        if lum_func is None:
+            lum_func = self.default_luminosity_function
+
         prob_1 = np.zeros(self.n_temp)
-        prob_1[np.where(self.temp_range > 0)] = self.vol_vox / (density_local * self.x_lt) \
-                                                * self.lum_func(self.temp_range[np.where(self.temp_range > 0)]
-                                                                * self.vol_vox / self.x_lt,
-                                                                local_values, self.fiducial_units)
+
+        try:
+            number_density = self.integral(lum_func, 1e1, 1e8, args=arguments)
+            prob_1[np.where(self.temp_range > 0)] = self.vol_vox / (number_density * self.x_lt) * lum_func(
+                self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt, arguments)
+        except NameError:
+            number_density = self.integral(lum_func, 1e1, 1e8)
+            prob_1[np.where(self.temp_range > 0)] = self.vol_vox / (number_density * self.x_lt) * lum_func(
+                self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt)
+
+
+
         prob_n = self.prob_of_temp_given_n(prob_1, self.n_max)
         prob_signal = np.zeros(self.n_temp)
+
         for i in range(1, self.n_max + 1):
-            prob_signal += prob_n[i] * self.prob_of_n_sources(i, density_local * self.vol_vox, local_values[-1] ** 2)
+            prob_signal += prob_n[i] * self.prob_of_n_sources(i, number_density * self.vol_vox, sigma_g ** 2)
+
         if self.mode == 'fft':
             prob_noise = 1.0 / np.sqrt(2 * np.pi * self.sigma_noise ** 2) \
                          * np.exp(- self.temp_range ** 2 / (2 * self.sigma_noise ** 2))
-            prob_total = self.prob_of_n_sources(0, density_local * self.vol_vox, local_values[-1] ** 2) * prob_noise \
+            prob_total = self.prob_of_n_sources(0, number_density * self.vol_vox, sigma_g ** 2) * prob_noise \
                          + fft.fftshift(np.abs(fft.irfft(fft.rfft(prob_signal) * fft.rfft(prob_noise))) * self.dtemp)
             # np.abs(fft.irfft(fft.rfft(prob_signal) * fft.rfft(prob_noise))) * self.dtemp
             # fft.fftshift(np.abs(fft.irfft(fft.rfft(prob_signal) * fft.rfft(prob_noise))) * self.dtemp)
         elif self.mode == 'log':
             prob_total = prob_signal
-        if x_array is None:
+
+        if temp_array is None:
             return prob_signal
         else:  # Interpolate in log-space ?
             p_func = interpolate.interp1d(self.temp_range,
                                           prob_signal)  # interpolate.splrep(self.temp_range, prob_signal, s=0)
-            return p_func(x_array)  # interpolate.splev(x_array, p_func, der=0)
+            return p_func(temp_array)  # interpolate.splev(temp_array, p_func, der=0)
 
     def integral(self, func, x_low, x_high, args=None, epsrel=1e-6):
         if self.mode == 'log':
@@ -104,7 +122,8 @@ class VoxelIntensityDistribution:
             else:
                 return integrate.quad(func, x_low, x_high, args=args, epsrel=epsrel)[0]
 
-    # Probability distribution of expected temperature from N sources given P1 = Probability distribution of expected temperature from 1 source
+    # Probability distribution of expected temperature from N sources given P1
+    # (= Probability distribution of expected temperature from 1 source)
     # Returns an array of values for N = 1 to n_max
 
     def prob_of_temp_given_n(self, prob_1, n):
@@ -139,7 +158,7 @@ class VoxelIntensityDistribution:
         return \
             integrate.quad(
                 lambda mu: 1.0 / mu * self.prob_log_normal(mu / mean_n, sigma_g_squared) * self.poisson(n, mu),
-                0, 100 * mean_n, epsrel=1e-6)[0]
+                0, 1e2 * mean_n, epsrel=1e-6)[0]
 
     @staticmethod
     def prob_log_normal(x, sigma_squared):
@@ -159,7 +178,7 @@ class VoxelIntensityDistribution:
     #     elif n >= 50:
     #         return 1.0 / (np.sqrt(2 * np.pi) * local_avg_n) * np.exp(-(n - local_avg_n) ** 2 / (2 * local_avg_n))
 
-    def default_luminosity_function(self, luminosity, fiducial_values, fiducial_units):
-        fid_val = fiducial_units * fiducial_values
-        return fid_val[0] * (luminosity / fid_val[1]) ** fid_val[2] * np.exp(
-            -luminosity / fid_val[1] - fid_val[3] / luminosity)
+    @staticmethod
+    def default_luminosity_function(luminosity, args):
+        return args[0] * (luminosity / args[1]) ** args[2] * np.exp(
+            -luminosity / args[1] - args[3] / luminosity)
