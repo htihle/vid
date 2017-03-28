@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import scipy.integrate as integrate
 import scipy.interpolate as interpolate
 
@@ -25,11 +26,10 @@ def integrate_log(f, a, b, args=None, epsrel=1e-4):
         return integrate.quad(logf, lna, lnb, epsrel=epsrel, args=args, limit=2)[0]
 
 
-def convolve_log(f1, f2, x_grid, y_grid=None):
-    if y_grid is None:
-        y_grid = x_grid
+def convolve_log(f1, f2, x_grid):
+
     f1_func = interpolate.interp1d(x_grid, f1)
-    f2_func = interpolate.interp1d(y_grid, f2)
+    f2_func = interpolate.interp1d(x_grid, f2)
 
     def f12_func(x, y):
         ymx = (y-x)*(y - x > x_grid[0]) + x_grid[0] * (y - x < x_grid[0])
@@ -110,17 +110,79 @@ def get_inv_cdf(func, edges, log=True, args=None):
     return inv_cdf_func
 
 
-def vid_from_cube(cubename, temp_range=None):
+def vid_from_cube(cube_name, temp_range=None):
     if temp_range is None:
         n = 100
         temp_range = np.logspace(-9, -4, n + 1)
     # else:
     #     n = len(temp_range) - 1
 
-    cube = np.load(cubename)
+    cube = np.load(cube_name)
     my_hist = np.histogram((cube.f.t.flatten() + 1e-12) * 1e-6, bins=temp_range)[0]
     n_vox = len(cube.f.t.flatten())
     dtemp_times_n_vox = (temp_range[1:] - temp_range[:-1]) * n_vox
     x = (temp_range[1:] + temp_range[:-1]) / 2
 
     return my_hist / dtemp_times_n_vox, x
+
+
+def power_law_ps(k, alpha=0, cutoff=0):  # Always cuts zero-frequency.
+    k_not_cut = k[np.where(k > cutoff)]
+    out_ps = np.zeros_like(k)
+    out_ps[np.where(k > cutoff)] = k_not_cut ** alpha
+    return out_ps
+
+
+def autocorr_from_cubes(cubename, temp_range=None, n_cubes=25, label=None):
+    if temp_range is None:
+        temp_range = np.logspace(-8, -4, 101)
+
+    n = len(temp_range) - 1
+    cube = np.load("cubes/" + cubename + ".npz")
+    myhist = np.histogram((cube.f.t.flatten() + 1e-12) * 1e-6, bins=temp_range)[0]
+    n_vox = len(cube.f.t.flatten())
+    dtemp_times_n_vox = (temp_range[1:] - temp_range[:-1]) * n_vox
+    x = (temp_range[1:] + temp_range[:-1]) / 2
+    dex = np.log10(x[1]) - np.log10(x[0])
+    avg = myhist / dtemp_times_n_vox
+
+    vid = []
+    for i in range(n_cubes):
+        cube = np.load("cubes/" + cubename + "_" + str(i) + ".npz")
+        B = np.histogram((cube.f.t.flatten() + 1e-12) * 1e-6, bins=temp_range)[0]
+        n_vox = len(cube.f.t.flatten())
+        dtemp_times_n_vox = (temp_range[1:] - temp_range[:-1]) * n_vox
+        x = (temp_range[1:] + temp_range[:-1]) / 2
+        vid.append(B / dtemp_times_n_vox)
+    vid = np.array(vid)
+
+    sigma = vid.std(0)
+    n_dt = int(0.9*n)
+
+    autocorr = np.zeros(n_dt)
+
+    for i in range(n_cubes):
+        residual = (vid[i]-avg)/sigma
+
+        autocorr += np.correlate(residual, residual, 'full')[len(residual):len(residual) + n_dt]
+
+    autocorr /= n_cubes * n
+
+    dex_arr = np.linspace(0, n_dt * dex, n_dt)
+    if label is None:
+        plt.plot(dex_arr, autocorr, label=cubename + ' (avg)')
+    else:
+        plt.plot(dex_arr, autocorr, label=label)
+
+
+def split_cube(cubename, rows=5, nr=25):
+    data_cube = np.load("cubes/" + cubename + ".npz")
+    full_cube = data_cube.f.t
+    for i in range(rows):
+        for j in range(rows):
+            index = rows * i + j
+            # print "\n\ncubes/" + cubename + "_" + str(index)
+            # print j*25, (j+1)*25, i*25, (i+1)*25
+            np.savez("cubes/" + cubename + "_" + str(index),
+                     t=full_cube[j * nr:(j + 1) * nr, i * nr:(i + 1) * nr, :])
+    print "Cube is split!"

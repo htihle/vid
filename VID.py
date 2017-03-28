@@ -2,8 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.integrate as integrate
 import scipy.interpolate as interpolate
+import scipy.stats as stats
 import numpy.fft as fft
 import ast
+import ConfigParser
 
 import tools
 
@@ -15,7 +17,13 @@ class VoxelIntensityDistribution:
     mpc = 3.086e22  # 1 mpc = 3.086e22 m
     solar_lum = 3.848e26  # W
 
-    def __init__(self, config):
+    def __init__(self, parameterfile=None):
+        config = ConfigParser.ConfigParser()
+        if parameterfile is None:
+            config.read('parameters.ini')
+        else:
+            config.read(parameterfile)
+
         self.config = config
         self.mode = config.get('Grid', 'mode')
         temp_max = float(config.get('Grid', 'temp_max'))
@@ -38,20 +46,31 @@ class VoxelIntensityDistribution:
 
         freq_max = float(config.get('Telescope', 'freq_max'))
         freq_min = float(config.get('Telescope', 'freq_min'))
-        z_min = self.nu_em / freq_max - 1
-        z_max = self.nu_em / freq_min - 1
-        self.z_mid = (z_max + z_min) / 2
+        self.z_min = self.nu_em / freq_max - 1
+        self.z_max = self.nu_em / freq_min - 1
+        self.z_mid = (self.z_max + self.z_min) / 2.0
         self.vol_vox, self.x_lt = self.get_x_and_vol()
+        self.n_freq = int(round((freq_max-freq_min)/self.delta_nu))
 
     def get_x_and_vol(self):
         comoving_distance = self.speed_of_light * integrate.quad(self.get_one_over_hubble, 0, self.z_mid)[0]
         vol_vox = 1.0 / (self.mpc ** 3) * (comoving_distance * self.angular_res) ** 2 * self.speed_of_light * \
                   self.get_one_over_hubble(self.z_mid) * (1 + self.z_mid) ** 2 * self.delta_nu / self.nu_em
-        print "Volume of 1 voxel: %g [(mpc/h)^3]" % vol_vox
+        #print "Volume of 1 voxel: %g [(mpc/h)^3]" % vol_vox
         x_lt = self.h ** 2 * self.solar_lum * 1.0 / (self.mpc ** 3) * self.speed_of_light ** 3 \
                * (1 + self.z_mid) ** 2 / (8 * np.pi * self.k_boltz * self.nu_em ** 3) \
                * self.get_one_over_hubble(self.z_mid)
         return vol_vox, x_lt  # both given in (mpc/h)^3
+
+    def get_grid(self, n_xy=25):
+        dr_vox = self.speed_of_light * self.get_one_over_hubble(self.z_mid)\
+                 * (1.0 + self.z_mid) ** 2 * self.delta_nu/self.nu_em * 1.0 / self.mpc
+        z = np.linspace(0, self.n_freq * dr_vox, self.n_freq + 1)
+        dx_vox = self.speed_of_light * integrate.quad(self.get_one_over_hubble, 0, self.z_mid)[0] \
+                 * self.angular_res * 1.0 / self.mpc
+        x = np.linspace(0, n_xy * dx_vox, n_xy + 1)
+        y = x
+        return x, y, z
 
     def get_one_over_hubble(self, z):
         hubble = 3.241e-18 * np.sqrt(self.omega_m * (1 + z) ** 3 + self.omega_l)  # in units of h/s
@@ -59,7 +78,7 @@ class VoxelIntensityDistribution:
 
     def calculate_vid(self, lum_func=None, parameters=None, temp_array=None):
         if parameters is None:
-            sigma_g = 1
+            sigma_g = 1.0
             if lum_func is None:
                 arguments = np.array(ast.literal_eval(self.config.get("Luminosity", "arguments"))).astype(float)
 
@@ -77,16 +96,15 @@ class VoxelIntensityDistribution:
         prob_1 = np.zeros(self.n_temp)
 
         try:
-            number_density = self.integral(lum_func, 1e1, 1e8, args=arguments)
+            number_density = self.integral(lum_func, 1e0, 1e8, args=arguments)
             prob_1[np.where(self.temp_range > 0)] = self.vol_vox / (number_density * self.x_lt) * lum_func(
                 self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt, arguments)
         except NameError:
-            number_density = self.integral(lum_func, 1e1, 1e8)
+            number_density = self.integral(lum_func, 1e0, 1e8)
             prob_1[np.where(self.temp_range > 0)] = self.vol_vox / (number_density * self.x_lt) * lum_func(
                 self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt)
 
-
-
+        # Could do this more efficient memorywise (relevant for high numbers of convolutions here.
         prob_n = self.prob_of_temp_given_n(prob_1, self.n_max)
         prob_signal = np.zeros(self.n_temp)
 
@@ -157,26 +175,18 @@ class VoxelIntensityDistribution:
     def prob_of_n_sources(self, n, mean_n, sigma_g_squared):
         return \
             integrate.quad(
-                lambda mu: 1.0 / mu * self.prob_log_normal(mu / mean_n, sigma_g_squared) * self.poisson(n, mu),
-                0, 1e2 * mean_n, epsrel=1e-6)[0]
+                lambda mu: 1.0 / mu * self.prob_log_normal(mu / mean_n, sigma_g_squared) * stats.poisson.pmf(n, mu),
+                0, 1e3 * mean_n, epsrel=1e-6)[0]
 
     @staticmethod
     def prob_log_normal(x, sigma_squared):
-        return 1 / np.sqrt(2 * np.pi * sigma_squared) * np.exp(
-            -1.0 / (2 * sigma_squared) * (np.log(x) + sigma_squared / 2) ** 2)
-
-    # Poisson PMF
-    @staticmethod
-    def poisson(n, local_avg_n):
-        return local_avg_n ** n * np.exp(-local_avg_n) / np.math.factorial(n)
+        return 1.0 / np.sqrt(2 * np.pi * sigma_squared) * np.exp(
+            -1.0 / (2 * sigma_squared) * (np.log(x) + sigma_squared / 2.0) ** 2)
 
     # # Poisson PMF
     # @staticmethod
-    # def poisson2(n, local_avg_n):
-    #     if n < 50:
-    #         return local_avg_n ** n * np.exp(-local_avg_n) / np.math.factorial(n)
-    #     elif n >= 50:
-    #         return 1.0 / (np.sqrt(2 * np.pi) * local_avg_n) * np.exp(-(n - local_avg_n) ** 2 / (2 * local_avg_n))
+    # def poisson(n, local_avg_n):
+    #     return local_avg_n ** n * np.exp(-local_avg_n) / np.math.factorial(n)
 
     @staticmethod
     def default_luminosity_function(luminosity, args):
