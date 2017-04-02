@@ -28,13 +28,13 @@ class VoxelIntensityDistribution:
         self.mode = config.get('Grid', 'mode')
         temp_max = float(config.get('Grid', 'temp_max'))
         self.n_temp = int(config.get('Grid', 'n_temp'))
-        if self.mode == 'log':
-            temp_min = float(config.get('Grid', 'temp_min'))
-            self.temp_range = np.logspace(np.log10(temp_min), np.log10(temp_max), self.n_temp)
-        elif self.mode == 'fft':
+        if (self.mode == 'noise') or (self.mode == 's+n'):
             self.temp_range = np.linspace(-temp_max, temp_max, self.n_temp)
             self.dtemp = self.temp_range[1] - self.temp_range[0]
             self.sigma_noise = float(config.get('Telescope', 'sigma_noise')) * 1e-6
+        elif self.mode == 'signal':
+            self.temp_range = np.linspace(0, temp_max, self.n_temp)
+            self.dtemp = self.temp_range[1] - self.temp_range[0]
 
         self.h = float(config.get('Cosmology', 'h'))
         self.omega_m = float(config.get('Cosmology', 'omega_m'))
@@ -76,96 +76,98 @@ class VoxelIntensityDistribution:
         hubble = 3.241e-18 * np.sqrt(self.omega_m * (1 + z) ** 3 + self.omega_l)  # in units of h/s
         return 1.0 / hubble
 
-    def calculate_vid(self, lum_func=None, parameters=None, temp_array=None):
-        if parameters is None:
-            sigma_g = 1.0
-            if lum_func is None:
-                arguments = np.array(ast.literal_eval(self.config.get("Luminosity", "arguments"))).astype(float)
+    def calculate_vid(self, lum_func=None, parameters=None, temp_array=None, check_normalization=False, sigma_noise=None):
+        if sigma_noise is None:
+            sigma_noise = self.sigma_noise
 
-        elif len(parameters[:-1]) == 0:
-            sigma_g = parameters[-1]
-            if lum_func is None:
-                arguments = np.array(ast.literal_eval(self.config.get("Luminosity", "arguments"))).astype(float)
+        if self.mode == 'noise':
+            prob_total = 1.0 / np.sqrt(2 * np.pi * sigma_noise ** 2) \
+                         * np.exp(- self.temp_range ** 2 / (2 * sigma_noise ** 2))
         else:
-            sigma_g = parameters[-1]
-            arguments = parameters[:-1]
+            if parameters is None:
+                sigma_g = 1.0
+                if lum_func is None:
+                    arguments = np.array(ast.literal_eval(self.config.get("Luminosity", "arguments"))).astype(float)
 
-        if lum_func is None:
-            lum_func = self.default_luminosity_function
+            elif len(parameters[:-1]) == 0:
+                sigma_g = parameters[-1]
+                if lum_func is None:
+                    arguments = np.array(ast.literal_eval(self.config.get("Luminosity", "arguments"))).astype(float)
+            else:
+                sigma_g = parameters[-1]
+                arguments = parameters[:-1]
 
-        prob_1 = np.zeros(self.n_temp)
+            if lum_func is None:
+                lum_func = self.default_luminosity_function
 
-        try:
-            number_density = self.integral(lum_func, 1e0, 1e8, args=arguments)
-            prob_1[np.where(self.temp_range > 0)] = self.vol_vox / (number_density * self.x_lt) * lum_func(
-                self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt, arguments)
-        except NameError:
-            number_density = self.integral(lum_func, 1e0, 1e8)
-            prob_1[np.where(self.temp_range > 0)] = self.vol_vox / (number_density * self.x_lt) * lum_func(
-                self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt)
+            prob_1 = np.zeros(self.n_temp)
 
-        # Could do this more efficient memorywise (relevant for high numbers of convolutions here.
-        prob_n = self.prob_of_temp_given_n(prob_1, self.n_max)
-        prob_signal = np.zeros(self.n_temp)
+            try:
+                number_density = self.integral(lum_func, 1e0, 1e8, args=arguments)
+                prob_1[np.where(self.temp_range > 0)] = self.vol_vox / (number_density * self.x_lt) * lum_func(
+                    self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt, arguments)
+            except NameError:
+                number_density = self.integral(lum_func, 1e0, 1e8)
+                prob_1[np.where(self.temp_range > 0)] = self.vol_vox / (number_density * self.x_lt) * lum_func(
+                    self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt)
 
-        for i in range(1, self.n_max + 1):
-            prob_signal += prob_n[i] * self.prob_of_n_sources(i, number_density * self.vol_vox, sigma_g ** 2)
+            # Could do this more efficient memory-wise (relevant for high numbers of convolutions here.
+            prob_n = self.prob_of_temp_given_n(prob_1, self.n_max)
+            prob_signal = np.zeros(self.n_temp)
 
-        if self.mode == 'fft':
-            prob_noise = 1.0 / np.sqrt(2 * np.pi * self.sigma_noise ** 2) \
-                         * np.exp(- self.temp_range ** 2 / (2 * self.sigma_noise ** 2))
-            prob_total = self.prob_of_n_sources(0, number_density * self.vol_vox, sigma_g ** 2) * prob_noise \
-                         + fft.fftshift(np.abs(fft.irfft(fft.rfft(prob_signal) * fft.rfft(prob_noise))) * self.dtemp)
-            # np.abs(fft.irfft(fft.rfft(prob_signal) * fft.rfft(prob_noise))) * self.dtemp
-            # fft.fftshift(np.abs(fft.irfft(fft.rfft(prob_signal) * fft.rfft(prob_noise))) * self.dtemp)
-        elif self.mode == 'log':
-            prob_total = prob_signal
+            for i in range(1, self.n_max + 1):
+                prob_signal += prob_n[i] * self.prob_of_n_sources(i, number_density * self.vol_vox, sigma_g ** 2)
 
+            if self.mode == 's+n':
+                prob_noise = 1.0 / np.sqrt(2 * np.pi * sigma_noise ** 2) \
+                             * np.exp(- self.temp_range ** 2 / (2 * sigma_noise ** 2))
+                prob_total = self.prob_of_n_sources(0, number_density * self.vol_vox, sigma_g ** 2) * prob_noise \
+                             + fft.fftshift(np.abs(fft.irfft(fft.rfft(prob_signal) * fft.rfft(prob_noise))) * self.dtemp)
+            elif self.mode == 'signal':
+                prob_total = prob_signal
+
+        if check_normalization:
+            prob_func = interpolate.interp1d(self.temp_range, prob_total)
+            norm = self.integral(prob_func, self.temp_range[0], self.temp_range[-1])
+            print "Integral of P(T) is :", norm
+            if self.mode == 'signal':
+                prob_0 = self.prob_of_n_sources(0, number_density * self.vol_vox, sigma_g ** 2)
+                print "Probability of empty voxel", prob_0
+                print "Sum is:", norm + prob_0
         if temp_array is None:
-            return prob_signal
+            return prob_total
         else:  # Interpolate in log-space ?
             p_func = interpolate.interp1d(self.temp_range,
-                                          prob_signal)  # interpolate.splrep(self.temp_range, prob_signal, s=0)
+                                          prob_total)  # interpolate.splrep(self.temp_range, prob_signal, s=0)
             return p_func(temp_array)  # interpolate.splev(temp_array, p_func, der=0)
-
-    def integral(self, func, x_low, x_high, args=None, epsrel=1e-6):
-        if self.mode == 'log':
-            if args is None:
-                return tools.integrate_log(func, x_low, x_high, epsrel=epsrel)
-            else:
-                return tools.integrate_log(func, x_low, x_high, args=args, epsrel=epsrel)
-        if self.mode == 'fft':
-            if args is None:
-                return integrate.quad(func, x_low, x_high, epsrel=epsrel)[0]
-            else:
-                return integrate.quad(func, x_low, x_high, args=args, epsrel=epsrel)[0]
 
     # Probability distribution of expected temperature from N sources given P1
     # (= Probability distribution of expected temperature from 1 source)
     # Returns an array of values for N = 1 to n_max
 
     def prob_of_temp_given_n(self, prob_1, n):
-        if self.mode == 'fft':
+        if self.mode == 's+n':
             prob_1_fft = fft.rfft(prob_1)
             prob_n = np.zeros((n + 1, len(prob_1)))
             prob_1_fft_n = 1
             for i in range(1, n + 1):
-                # prob_of_temp_given_n[i] = np.abs(fft.irfft(prob_1_fft**i))*self.dtemp**(i-1)
                 prob_1_fft_n *= prob_1_fft
                 # Abs, because fft +ifft can make ~zero into sligthly negative.
                 if i % 2 == 0:
                     prob_n[i] = fft.fftshift(np.abs(fft.irfft(prob_1_fft_n)))  # np.abs(fft.irfft(prob_1_fft_n))
                 elif i % 2 == 1:
                     prob_n[i] = np.abs(fft.irfft(prob_1_fft_n))
-                # fft.fftshift(np.abs(fft.irfft(prob_1_fft_n)))
                 prob_1_fft_n *= self.dtemp  # Needed for normalization
-        elif self.mode == 'log':
+        elif self.mode == 'signal':
+            prob_1_fft = fft.rfft(prob_1)
             prob_n = np.zeros((n + 1, len(prob_1)))
-            convolution = prob_1
+            prob_1_fft_n = 1
             for i in range(1, n + 1):
-                prob_n[i] = convolution
-                if i < n:
-                    convolution = tools.convolve_log(convolution, prob_1, self.temp_range)
+
+                prob_1_fft_n *= prob_1_fft
+                # Abs, because fft +ifft can make ~zero into sligthly negative.
+                prob_n[i] = np.abs(fft.irfft(prob_1_fft_n))
+                prob_1_fft_n *= self.dtemp  # Needed for normalization
         else:
             print "Unknown mode: ", self.mode
             prob_n = np.zeros((n + 1, len(prob_1)))
@@ -183,6 +185,12 @@ class VoxelIntensityDistribution:
         return 1.0 / np.sqrt(2 * np.pi * sigma_squared) * np.exp(
             -1.0 / (2 * sigma_squared) * (np.log(x) + sigma_squared / 2.0) ** 2)
 
+    @staticmethod
+    def integral(func, x_low, x_high, args=None, epsrel=1e-6):
+        if args is None:
+            return integrate.quad(func, x_low, x_high, epsrel=epsrel)[0]
+        else:
+            return integrate.quad(func, x_low, x_high, args=args, epsrel=epsrel)[0]
     # # Poisson PMF
     # @staticmethod
     # def poisson(n, local_avg_n):
@@ -192,3 +200,4 @@ class VoxelIntensityDistribution:
     def default_luminosity_function(luminosity, args):
         return args[0] * (luminosity / args[1]) ** args[2] * np.exp(
             -luminosity / args[1] - args[3] / luminosity)
+

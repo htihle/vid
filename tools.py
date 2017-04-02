@@ -4,44 +4,6 @@ import scipy.integrate as integrate
 import scipy.interpolate as interpolate
 
 
-def integrate_log(f, a, b, args=None, epsrel=1e-4):
-    if isinstance(f, np.ndarray):
-        x_array = np.linspace(np.log(a), np.log(b), len(f))
-        return integrate.simps(f * np.exp(x_array), x_array)
-    if args is None:
-        lna = np.log(a)
-        lnb = np.log(b)
-
-        def logf(x):
-            return f(np.exp(x))*np.exp(x)
-
-        return integrate.quad(logf, lna, lnb, epsrel=epsrel)[0]
-    else:
-        lna = np.log(a)
-        lnb = np.log(b)
-
-        def logf(x, *args):
-            return f(np.exp(x), *args)*np.exp(x)
-
-        return integrate.quad(logf, lna, lnb, epsrel=epsrel, args=args, limit=2)[0]
-
-
-def convolve_log(f1, f2, x_grid):
-
-    f1_func = interpolate.interp1d(x_grid, f1)
-    f2_func = interpolate.interp1d(x_grid, f2)
-
-    def f12_func(x, y):
-        ymx = (y-x)*(y - x > x_grid[0]) + x_grid[0] * (y - x < x_grid[0])
-        return (y - x > x_grid[0]) * f1_func(x[:]) * f2_func(ymx)  # f1_func(x)*f2_func(y) #(x < y-x_grid[0])*f1_func(x)*f2_func((y)*(x < y-x_grid[0]))
-    dx = np.zeros(len(x_grid))
-    dx[1:] = (x_grid[1:] - x_grid[:-1]) / 2
-    dx[:-1] += (x_grid[1:] - x_grid[:-1]) / 2
-    xx, yy = np.meshgrid(x_grid, x_grid)
-    convolution = np.sum(f12_func(xx, yy)*dx, axis=1)  # integrate.simps(f12_func(xx, yy),x_grid)
-    return convolution
-
-
 def azimutal_average_3d(inmap, x, y, z, dr, x0=0, y0=0, z0=0):
     x_ind, y_ind, z_ind = np.indices(inmap.shape)
 
@@ -110,16 +72,19 @@ def get_inv_cdf(func, edges, log=True, args=None):
     return inv_cdf_func
 
 
-def vid_from_cube(cube_name, temp_range=None):
+def vid_from_cube(cube_name=None, cube=None, temp_range=None, add_noise=False, noise_temp=0):
     if temp_range is None:
         n = 100
         temp_range = np.logspace(-9, -4, n + 1)
-    # else:
-    #     n = len(temp_range) - 1
-
-    cube = np.load(cube_name)
-    my_hist = np.histogram((cube.f.t.flatten() + 1e-12) * 1e-6, bins=temp_range)[0]
-    n_vox = len(cube.f.t.flatten())
+    if cube is None:
+        cube = (np.load(cube_name))
+        cube = cube.f.t
+    if add_noise:
+        flat_cube = (cube + np.random.randn(*cube.shape) * noise_temp).flatten()  # cube.f.t.shape
+    else:
+        flat_cube = cube.flatten()
+    my_hist = np.histogram((flat_cube + 1e-12) * 1e-6, bins=temp_range)[0]
+    n_vox = len(cube.flatten())
     dtemp_times_n_vox = (temp_range[1:] - temp_range[:-1]) * n_vox
     x = (temp_range[1:] + temp_range[:-1]) / 2
 
@@ -186,3 +151,24 @@ def split_cube(cubename, rows=5, nr=25):
             np.savez("cubes/" + cubename + "_" + str(index),
                      t=full_cube[j * nr:(j + 1) * nr, i * nr:(i + 1) * nr, :])
     print "Cube is split!"
+
+
+def best_fit_noise(vid, temp_range, sigma_noise, dtemp_times_n_vox):
+    best_sigma = sigma_noise
+    my_min = 1e13
+    sigma_arr = np.linspace(sigma_noise * 0.60, sigma_noise * 1.4, 1000)
+    for sigma in sigma_arr:
+        model = noise_vid(temp_range, sigma_noise=sigma * 1e-6)
+        chi2 = calculate_chi_squared(vid, model, model/dtemp_times_n_vox)
+        if chi2 < my_min:
+            my_min = chi2
+            best_sigma = sigma
+    return best_sigma
+
+
+def calculate_chi_squared(data, model, std_2=1.0):
+    return np.sum((data - model) ** 2 / std_2)
+
+
+def noise_vid(temp, sigma_noise=1.0):
+    return 1.0 / np.sqrt(2 * np.pi * sigma_noise ** 2) * np.exp(- temp ** 2 / (2 * sigma_noise ** 2))
