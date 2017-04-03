@@ -52,6 +52,9 @@ class VoxelIntensityDistribution:
         self.vol_vox, self.x_lt = self.get_x_and_vol()
         self.n_freq = int(round((freq_max-freq_min)/self.delta_nu))
 
+    # Function that calculates the relevant cosmology to translate between luminosity and brightness temperature.
+    # Note that we do not take into account the changes in the vid at different redshift,
+    # but we calculate the vid for the central redshift.
     def get_x_and_vol(self):
         comoving_distance = self.speed_of_light * integrate.quad(self.get_one_over_hubble, 0, self.z_mid)[0]
         vol_vox = 1.0 / (self.mpc ** 3) * (comoving_distance * self.angular_res) ** 2 * self.speed_of_light * \
@@ -62,6 +65,7 @@ class VoxelIntensityDistribution:
                * self.get_one_over_hubble(self.z_mid)
         return vol_vox, x_lt  # both given in (mpc/h)^3
 
+    # Generates a grid that can be used by the mapmaker with the same properties as the vid.
     def get_grid(self, n_xy=25):
         dr_vox = self.speed_of_light * self.get_one_over_hubble(self.z_mid)\
                  * (1.0 + self.z_mid) ** 2 * self.delta_nu/self.nu_em * 1.0 / self.mpc
@@ -75,6 +79,9 @@ class VoxelIntensityDistribution:
     def get_one_over_hubble(self, z):
         hubble = 3.241e-18 * np.sqrt(self.omega_m * (1 + z) ** 3 + self.omega_l)  # in units of h/s
         return 1.0 / hubble
+
+    # Function that actually calculates the vid. Can take an array of temperatures to
+    # return the vid at those temperatures. Slightly complicated default behaviour with many different cases.
 
     def calculate_vid(self, lum_func=None, parameters=None, temp_array=None, check_normalization=False, sigma_noise=None):
         if sigma_noise is None:
@@ -153,9 +160,10 @@ class VoxelIntensityDistribution:
             prob_1_fft_n = 1
             for i in range(1, n + 1):
                 prob_1_fft_n *= prob_1_fft
-                # Abs, because fft +ifft can make ~zero into sligthly negative.
+                # This ensures that the convolution is implemented correctly,
+                # since otherwise it will mirror the origin.
                 if i % 2 == 0:
-                    prob_n[i] = fft.fftshift(np.abs(fft.irfft(prob_1_fft_n)))  # np.abs(fft.irfft(prob_1_fft_n))
+                    prob_n[i] = fft.fftshift(np.abs(fft.irfft(prob_1_fft_n)))
                 elif i % 2 == 1:
                     prob_n[i] = np.abs(fft.irfft(prob_1_fft_n))
                 prob_1_fft_n *= self.dtemp  # Needed for normalization
@@ -176,6 +184,8 @@ class VoxelIntensityDistribution:
 
     # Probability that a voxel contains N sources
     def prob_of_n_sources(self, n, mean_n, sigma_g_squared):
+        # Full integral range works poorly for low sigma values.
+        # 1e3 * mean_n should be decent for sigma_g < 2.
         if sigma_g_squared < 0.3:
             return \
                 integrate.quad(
@@ -203,6 +213,7 @@ class VoxelIntensityDistribution:
     # def poisson(n, local_avg_n):
     #     return local_avg_n ** n * np.exp(-local_avg_n) / np.math.factorial(n)
 
+    # Fiducial model for the luminosity function from Breysse et. al.
     @staticmethod
     def default_luminosity_function(luminosity, args):
         return args[0] * (luminosity / args[1]) ** args[2] * np.exp(

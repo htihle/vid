@@ -11,6 +11,9 @@ import VID
 import ast
 
 
+# Class for generating maps used for vid-analysis. Does not take into account the change in redshift,
+# but assumes a rectangular grid of voxels. Note that x, y and z are arrays with the voxel intersections,
+# not the voxel centers.
 class MapMaker:
 
     def __init__(self, x, y, z):
@@ -29,7 +32,7 @@ class MapMaker:
         self.fy = fft.fftshift(fft.fftfreq(self.n_y, self.dy))
         self.fz = fft.fftshift(fft.fftfreq(self.n_z, self.dz))
 
-    def create_map(self, number_of_maps=1, power_spectrum_function=None, log_normal=False, sigma_g=1, *args, **kwargs):
+    def create_map(self, number_of_maps=1, power_spectrum_function=None, log_normal=False, sigma_g=1.0, *args, **kwargs):
         if power_spectrum_function is None:
             ps_values = sigma_g ** 2 * self.vox_vol
         else:
@@ -54,6 +57,7 @@ class MapMaker:
             out_map = np.exp(out_map - sigma_g ** 2 / 2.0) - 1.0
         return out_map
 
+    # Normalizes the power spectrum such that the voxel variance, sigma_g^2, is correct.
     def normalize_power_spectrum(self, sigma, ps_func, *args, **kwargs):
         w = np.zeros((self.n_x, self.n_y, self.n_z))
         w[0, 0, 0] = 1
@@ -65,6 +69,7 @@ class MapMaker:
         norm_factor = np.sum(np.abs(w_fft) ** 2 * p_k)
         return p_k / (norm_factor / sigma ** 2) * self.volume
 
+    # Does not take into account changes with redshift properly, but that would be complicated!
     def calculate_power_spec_3d(self, in_map):
         # just something to get reasonable values for dk, not very good
         dk = 1 * np.sqrt(np.sqrt(self.dx * self.dy)) / np.sqrt(self.volume)
@@ -72,9 +77,9 @@ class MapMaker:
         fft_map = fft.fftn(in_map) / (self.n_x * self.n_y * self.n_z)
         fft_map = fft.fftshift(fft_map)
         ps = np.abs(fft_map) ** 2 * self.volume
-        return tools.azimutal_average_3d(ps, self.fx, self.fy, self.fz, dk)
+        return tools.angular_average_3d(ps, self.fx, self.fy, self.fz, dk)
 
-    # take in mapmaker object!! makes complete sense!
+    # Generates a custom cube from a luminosity function and a power spectrum.
     def generate_cube(self, lum_func=None, power_spectrum=None, sigma_g=1.0,
                       parameterfile='parameters.ini', cubename='custom_cube', lum_args=None, ps_args=None):
         if power_spectrum is None:

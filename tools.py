@@ -4,7 +4,8 @@ import scipy.integrate as integrate
 import scipy.interpolate as interpolate
 
 
-def azimutal_average_3d(inmap, x, y, z, dr, x0=0, y0=0, z0=0):
+# Calculates the angular average of any map.
+def angular_average_3d(inmap, x, y, z, dr, x0=0, y0=0, z0=0):
     x_ind, y_ind, z_ind = np.indices(inmap.shape)
 
     r = np.sqrt((x[x_ind] - x0) ** 2
@@ -40,6 +41,7 @@ def generate_poisson_map(lambda_map):
     return output_map
 
 
+# Inverse cumulative distribution function, used for inversion sampling of any distribution.
 def get_inv_cdf(func, edges, log=True, args=None):
     if log:
         n_cmf = 5000
@@ -98,6 +100,7 @@ def power_law_ps(k, alpha=0, cutoff=0):  # Always cuts zero-frequency.
     return out_ps
 
 
+# Calculates the autocorrelation between the different bins of the vid from a cube.
 def autocorr_from_cubes(cubename, temp_range=None, n_cubes=25, label=None):
     if temp_range is None:
         temp_range = np.logspace(-8, -4, 101)
@@ -140,6 +143,7 @@ def autocorr_from_cubes(cubename, temp_range=None, n_cubes=25, label=None):
         plt.plot(dex_arr, autocorr, label=label)
 
 
+# Split one large cube into alot of smaller ones. Assumes symmetry in x-y plane.
 def split_cube(cubename, rows=5, nr=25):
     data_cube = np.load("cubes/" + cubename + ".npz")
     full_cube = data_cube.f.t
@@ -153,13 +157,14 @@ def split_cube(cubename, rows=5, nr=25):
     print "Cube is split!"
 
 
+# Fit noise vid to any vid.
 def best_fit_noise(vid, temp_range, sigma_noise, dtemp_times_n_vox):
     best_sigma = sigma_noise
     my_min = 1e13
     sigma_arr = np.linspace(sigma_noise * 0.60, sigma_noise * 1.4, 1000)
     for sigma in sigma_arr:
         model = noise_vid(temp_range, sigma_noise=sigma * 1e-6)
-        chi2 = calculate_chi_squared(vid, model, model/dtemp_times_n_vox)
+        chi2 = calculate_chi_squared(vid, model, std_2=model/dtemp_times_n_vox)
         if chi2 < my_min:
             my_min = chi2
             best_sigma = sigma
