@@ -7,6 +7,7 @@ import corner
 
 import VID
 
+# This file needs to be updated and improved.
 
 def my_lnprob(par, dtemp_times_n_vox, vid, data):
     return -np.sum((vid.calculate_vid(par, x)[np.where(data > 0)] * dtemp_times_n_vox - data[
