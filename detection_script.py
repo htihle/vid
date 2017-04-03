@@ -59,4 +59,4 @@ for j in range(len(sigma_noise_arr)):
         results[j, i] = calculate_detection_significance('cubes/cita_cube_' + str(i) + '.npz',
                                                          sigma_noise, temp_range, n_iters)
 
-np.save('significance_results_1000.np', results)
+np.save('significance_results', results)

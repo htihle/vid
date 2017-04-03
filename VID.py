@@ -78,7 +78,8 @@ class VoxelIntensityDistribution:
 
     def calculate_vid(self, lum_func=None, parameters=None, temp_array=None, check_normalization=False, sigma_noise=None):
         if sigma_noise is None:
-            sigma_noise = self.sigma_noise
+            if (self.mode == 'noise') or (self.mode == 's+n'):
+                sigma_noise = self.sigma_noise
 
         if self.mode == 'noise':
             prob_total = 1.0 / np.sqrt(2 * np.pi * sigma_noise ** 2) \
@@ -175,10 +176,16 @@ class VoxelIntensityDistribution:
 
     # Probability that a voxel contains N sources
     def prob_of_n_sources(self, n, mean_n, sigma_g_squared):
-        return \
-            integrate.quad(
-                lambda mu: 1.0 / mu * self.prob_log_normal(mu / mean_n, sigma_g_squared) * stats.poisson.pmf(n, mu),
-                0, 1e3 * mean_n, epsrel=1e-6)[0]
+        if sigma_g_squared < 0.3:
+            return \
+                integrate.quad(
+                    lambda mu: 1.0 / mu * self.prob_log_normal(mu / mean_n, sigma_g_squared) * stats.poisson.pmf(n, mu),
+                    0, 30 * mean_n, epsrel=1e-6)[0]
+        else:
+            return \
+                integrate.quad(
+                    lambda mu: 1.0 / mu * self.prob_log_normal(mu / mean_n, sigma_g_squared) * stats.poisson.pmf(n, mu),
+                    0, 1e3 * mean_n, epsrel=1e-6)[0]
 
     @staticmethod
     def prob_log_normal(x, sigma_squared):
