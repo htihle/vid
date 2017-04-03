@@ -1,0 +1,101 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage[dvips]{graphicx}
+\usepackage{tabularx}
+%opening
+\title{Notes on the Voxel Intensity Distribution}
+\author{Håvard Tveit Ihle}
+
+\begin{document}
+
+\maketitle
+
+\section{Voxel volume}
+The comoving lenght corresponding to an angular separation $\Delta \theta$, for a given redshift $z$, is given by
+\begin{equation}
+ D  = r(z) \Delta \theta   = \Delta \theta \int_0^z \frac{c dz'}{H(z')},
+\end{equation}
+where $r(z)$ is the comoving distance travelled by light emitted from redshift $z$ to us. 
+
+The comoving radial distance corresponding to a small redshift interval $\Delta z = z_1- z_2 = \nu_0/\nu_1^\text{obs} - \nu_0/\nu_2^\text{obs} \approx (1+z)^2 \Delta \nu^\text{obs} /\nu_0$, where $z_1 > z_2$, is given by
+\begin{equation}
+ \Delta r = \int_{z_2}^{z_1} \frac{c dz}{H(z)} \approx \frac{c \Delta z}{H(z)} \approx \frac{c}{H(z)} \frac{(1+z)^2 \Delta \nu^\text{obs}}{\nu_0}, 
+\end{equation}
+for small $\Delta z$. 
+
+So the volume of a voxel at redshift $z$, with sides of angular size $\Delta \theta$ and depth $\Delta z$, is given approximately by
+\begin{align}
+ V_\text{vox} &\approx D^2 \Delta r \approx  r(z)^2 \Delta \theta^2 \frac{c}{H(z)} \frac{(1+z)^2 \Delta \nu^\text{obs}}{\nu_0} \nonumber\\
+ &= \Delta \theta^2 \frac{(1+z)^2 \Delta \nu^\text{obs} }{\nu_0 E(z)}\frac{c^3}{H_0^3}   \left(\int_0^z \frac{dz'}{E(z')}\right)^2,
+\end{align}
+where $E(z) \equiv H(z)/H_0.$
+
+\section{Fourier transform conventions}
+These conventions are for 1D, but are easily generalized to arbitrary dimension.
+We here use the convention where the map and the fourier coefficients have the same dimensions: 
+\begin{align}
+ \tilde{f}(k) &= \frac{1}{L} \int dx f(x) e^{-ikx}, \\
+ f(x) &= L \int \frac{dk}{2 \pi} \tilde{f}(k) e^{ikx}.
+\end{align}
+
+The discrete versions of these are defined such that $f_n = f(x_n)$ and $\tilde{f}_l = f(k_l)$:
+\begin{align}
+\tilde{f}_l &= \frac{1}{N} \sum_{n=0}^{N-1} f_n e^{-i\frac{2 \pi}{N} n l}, \\
+f_n &= \sum_{l=0}^{N-1} \tilde{f}_l e^{i\frac{2 \pi}{N} n l},
+\end{align}
+where $ k_l = \frac{2 \pi}{L} l$ and $ x_n = \frac{L}{N} n$. Note that the upper half (the exact number depends on if $N$ is even or odd) and higher actually mirror negative freqencies. So the largest physical frequency is $f = \frac{N}{2} \frac{1}{L}$ or $k = \frac{N}{2} \frac{2\pi}{L}$, where $\frac{N}{2}$ is understood as integer division.
+
+The (continous) power spectrum, $P(k)$, is defined as:
+\begin{equation}
+ P(k) = L \langle |\tilde{f}(k)|^2 \rangle.
+\end{equation}
+While the discrete one is given by: 
+\begin{equation}
+ P_{k_l} = \langle |\tilde{f}_l|^2 \rangle, 
+\end{equation}
+so that $P_{k_l}  = \frac{P(k_l)}{L}$.
+
+\section{Window function and power spectrum}
+We define the pixel (voxel) window function, $W(x)$, as follows:
+\begin{equation}
+ W(x) = \begin{cases} 
+      0 &, \hspace{0.5cm}\text{outside pixel} \\   \frac{L}{\Delta x_\text{vox}} &, \hspace{0.5cm}   \text{inside pixel} 
+   \end{cases}
+\end{equation}
+where $\Delta x_\text{vox}$ is the length of the voxel. 
+
+This ensures the normalization condition is fulfilled:
+\begin{equation}
+ \frac{1}{L} \int  dx \, W(x)= 1.
+\end{equation}
+
+The pixel variance of a Gaussian random field with power spectrum $P(k)$ is then given by:
+\begin{equation}
+ \sigma_G^2 = \int \frac{dk}{2\pi} P(k) |\tilde{W}(k)|^2 .
+\end{equation}
+
+The discrete versions of these equations are 
+\begin{equation}
+ \sum_n W_{n} = 1,
+\end{equation}
+and 
+\begin{equation}
+ \sigma_G^2 = \sum_l P_{k_l} |\tilde{W}_{k_l}|^2 .
+\end{equation}
+
+\section{Noise levels}
+We use the radiometer equation to estimate the voxel noise level: 
+\begin{equation}
+ \sigma_T = \frac{T_\text{sys}}{\sqrt{\tau \Delta \nu}} = \frac{T_\text{sys}}{\sqrt{\frac{\tau_\text{tot} e_\text{obs} N_\text{feeds}}{N_\text{pixels}} \Delta \nu}},
+\end{equation}
+where $\sigma_T^2$ is the variance of the voxel noise, $T_\text{sys}$ is the system temperature, $\tau$ is the observation time per pixel, $\tau_\text{tot}$ is the total time, $e_\text{obs}$ is the observation efficiency, $N_\text{feeds}$ is the number of feeds, $N_\text{pixels}$ is the number of pixels, and $\Delta \nu$ is the frequency resolution.
+
+For the COMAP experiment we expect a system temperature of about $T_\text{sys} \approx 35$ K. We are also considering using 1024 frequency channels, which would give a frequency resolution of about $\Delta \nu = \frac{8\, \text{GHz}}{1024} \approx 7.8\, \text{MHz}$. 
+
+For a grid of $25 \times 25$ pixels, for two years of observation time, with 19 feeds and assuming a $35 \%$ observation efficiency we get: 
+\begin{equation}
+ \sigma_T = \frac{35\, \text{K}}{\sqrt{2 \times 365 \times 24 \times 3600 \times 0.35 \times 19 / (25 \times 25) \times 7.8 \times 10^6}} \approx 15.3 \, \mu K,
+\end{equation}
+
+\end{document}
