@@ -186,16 +186,23 @@ class VoxelIntensityDistribution:
     def prob_of_n_sources(self, n, mean_n, sigma_g_squared):
         # Full integral range works poorly for low sigma values.
         # 1e3 * mean_n should be decent for sigma_g < 2.
-        if sigma_g_squared < 0.3:
-            return \
-                integrate.quad(
-                    lambda mu: 1.0 / mu * self.prob_log_normal(mu / mean_n, sigma_g_squared) * stats.poisson.pmf(n, mu),
-                    0, 30 * mean_n, epsrel=1e-6)[0]
+        if sigma_g_squared < 0.05 ** 2:
+            return stats.poisson.pmf(n, mean_n)
         else:
             return \
                 integrate.quad(
                     lambda mu: 1.0 / mu * self.prob_log_normal(mu / mean_n, sigma_g_squared) * stats.poisson.pmf(n, mu),
-                    0, 1e3 * mean_n, epsrel=1e-6)[0]
+                    0, 20 * 10 ** np.sqrt(sigma_g_squared) * mean_n, epsrel=1e-6)[0]
+        # if sigma_g_squared < 0.3:
+        #     return \
+        #         integrate.quad(
+        #             lambda mu: 1.0 / mu * self.prob_log_normal(mu / mean_n, sigma_g_squared) * stats.poisson.pmf(n, mu),
+        #             0, 30 * mean_n, epsrel=1e-6)[0]
+        # else:
+        #     return \
+        #         integrate.quad(
+        #             lambda mu: 1.0 / mu * self.prob_log_normal(mu / mean_n, sigma_g_squared) * stats.poisson.pmf(n, mu),
+        #             0, 1e3 * mean_n, epsrel=1e-6)[0]
 
     @staticmethod
     def prob_log_normal(x, sigma_squared):
@@ -218,4 +225,3 @@ class VoxelIntensityDistribution:
     def default_luminosity_function(luminosity, args):
         return args[0] * (luminosity / args[1]) ** args[2] * np.exp(
             -luminosity / args[1] - args[3] / luminosity)
-
