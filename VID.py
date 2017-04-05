@@ -120,10 +120,13 @@ class VoxelIntensityDistribution:
                     self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt)
 
             # Could do this more efficient memory-wise (relevant for high numbers of convolutions here.
-            prob_n = self.prob_of_temp_given_n(prob_1, self.n_max)
+            n_sources = int(round(min(self.n_max, 5 + number_density * self.vol_vox * 10 * 10 ** sigma_g)))
+            print "sources per voxel", number_density * self.vol_vox
+            print n_sources
+            prob_n = self.prob_of_temp_given_n(prob_1, n_sources)
             prob_signal = np.zeros(self.n_temp)
 
-            for i in range(1, self.n_max + 1):
+            for i in range(1, n_sources + 1):
                 prob_signal += prob_n[i] * self.prob_of_n_sources(i, number_density * self.vol_vox, sigma_g ** 2)
 
             if self.mode == 's+n':
