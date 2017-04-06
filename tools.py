@@ -177,3 +177,33 @@ def calculate_chi_squared(data, model, std_2=1.0):
 
 def noise_vid(temp, sigma_noise=1.0):
     return 1.0 / np.sqrt(2 * np.pi * sigma_noise ** 2) * np.exp(- temp ** 2 / (2 * sigma_noise ** 2))
+
+
+def load_cita_lums(name='cubes/luminosity_function_vel.dat'):
+    infile = open(name, 'rb')
+    infile.seek(0, 2)  # 2 corresponds to end of file
+    infile_size = infile.tell()
+    nhalos = (infile_size) / (4 * 7)  # 7 floats per halo
+    infile.seek(0)
+    print "nhalos = ", nhalos
+    lum_func = np.fromfile(infile, dtype=np.float32, count=nhalos * 7)
+    lum_func = np.reshape(lum_func, (nhalos, 7))
+
+    x = lum_func[:, 0]
+    y = lum_func[:, 1]
+    z = lum_func[:, 2]
+    vel = lum_func[:, 3]
+    redshift = lum_func[:, 4]
+    mass = lum_func[:, 5]
+    Lco = lum_func[:, 6]
+    return Lco
+
+
+def log_bins(x_start, x_end, n_bins):
+    bin_edges = np.logspace(np.log10(x_start), np.log10(x_end), n_bins + 1)
+
+    bin_centers = (bin_edges[1:] + bin_edges[:-1]) / 2.0
+
+    bin_spacings = bin_edges[1:] - bin_edges[:-1]
+
+    return bin_edges, bin_centers, bin_spacings
