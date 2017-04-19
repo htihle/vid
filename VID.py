@@ -121,8 +121,6 @@ class VoxelIntensityDistribution:
 
             # Could do this more efficient memory-wise (relevant for high numbers of convolutions here.
             n_sources = int(round(min(self.n_max, 5 + number_density * self.vol_vox * 10 * 10 ** sigma_g)))
-            print "sources per voxel", number_density * self.vol_vox
-            print n_sources
             prob_n = self.prob_of_temp_given_n(prob_1, n_sources)
             prob_signal = np.zeros(self.n_temp)
 

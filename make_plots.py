@@ -5,6 +5,7 @@ import corner
 import ConfigParser
 
 import VID
+import tools
 
 
 # Load autosaves
@@ -18,12 +19,21 @@ print values
 
 samples = np.load(name)
 
+samples[:, 0] /= 1e-10
+samples[:, 1] /= 1e6
 
-fig = corner.corner(samples, labels=[r"$\phi_* / 10^{-10}$",
-                                     r"$L_* / 10^{6}$ ",
-                                     r"$\alpha$",
-                                     r"$L_{min} / 10^{2}$ ",
-                                     r"$\sigma_G$"],
+# lab = [r"$\phi_* / 10^{-10}$",
+#        r"$L_* / 10^{6}$ ",
+#        r"$\alpha$",
+#        r"$L_{min} / 10^{2}$ ",
+#        r"$\sigma_G$"]
+
+lab = [r"$\phi_* / 10^{-10}$",
+       r"$L_* / 10^{6}$ ",
+       r"$\alpha$",
+       r"$\sigma_G$"]
+
+fig = corner.corner(samples, labels=lab,
                     show_titles=True, levels=(1 - np.exp(-0.5 * np.arange(1, 2.1, 1))))
 fig.savefig("CornerPlot.pdf")
 plt.show()
@@ -43,18 +53,18 @@ n = 100
 config = ConfigParser.ConfigParser()
 config.read('parameters.ini')
 
-fid_val = [7.76, 1.34, -1.52, 5.17, 0.79]
-fid_units = [1e-10, 1e6, 1, 1e2, 1]
  
 
-vid = VID.VoxelIntensityDistribution(full_phi, fid_val, fid_units, config)
+vid = VID.VoxelIntensityDistribution()
 
-temp_range = np.logspace(np.log10(2e-9), -4, n + 1)
-B_i = np.histogram((cube.f.t.flatten() + 1e-12) * 1e-6, bins=temp_range)[0]
-dtemp_times_n_vox = (temp_range[1:] - temp_range[:-1]) * n_vox
-x = (temp_range[1:] + temp_range[:-1]) / 2
+parm = np.zeros(5)
+parm[0:3] = values[0:3]
+parm[-1] = values[-1]
+parm[3] = 100e2
 
-plt.loglog(x, B_i / dtemp_times_n_vox, x, vid.calculate_vid(values, x))
+vid_from_cube, x = tools.vid_from_cube('cubes/cita_cube_0.npz', add_noise=True, noise_temp=15.3, temp_range=np.logspace(np.log10(1e-5), -4, 100 + 1))
+
+plt.loglog(x, vid_from_cube, x, vid.calculate_vid(parameters=parm, temp_array=x))
 plt.legend(['actual', 'best fit model'], loc='lower left')
 plt.title('VID comparison Full CITA-cube')
 plt.xlabel('T [K]')
