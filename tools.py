@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import scipy.integrate as integrate
 import scipy.interpolate as interpolate
 
+import VID
+
 
 # Calculates the angular average of any map.
 def angular_average_3d(inmap, x, y, z, dr, x0=0, y0=0, z0=0):
@@ -207,3 +209,13 @@ def log_bins(x_start, x_end, n_bins):
     bin_spacings = bin_edges[1:] - bin_edges[:-1]
 
     return bin_edges, bin_centers, bin_spacings
+
+
+def lumfunc_confidence_interval(samples, lum_range=None, percentiles=None):
+    if lum_range is None:
+        lum_range = np.logspace(4, 7, 100)
+    if percentiles is None:
+        percentiles = [2.5, 50, 97.5]
+
+    return np.percentile(VID.VoxelIntensityDistribution.default_luminosity_function(lum_range[:, None], samples),
+                         percentiles, axis=1)
