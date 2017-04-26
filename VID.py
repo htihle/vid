@@ -6,6 +6,7 @@ import scipy.stats as stats
 import numpy.fft as fft
 import ast
 import ConfigParser
+import warnings
 
 import tools
 
@@ -118,7 +119,9 @@ class VoxelIntensityDistribution:
                 number_density = self.integral(lum_func, 1e0, 1e8)
                 prob_1[np.where(self.temp_range > 0)] = self.vol_vox / (number_density * self.x_lt) * lum_func(
                     self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt)
-
+            if number_density < 0:
+                print "Negative number density."
+            print number_density
             # Could do this more efficient memory-wise (relevant for high numbers of convolutions here.
             n_sources = int(round(min(self.n_max, 5 + number_density * self.vol_vox * 10 * 10 ** sigma_g)))
             prob_n = self.prob_of_temp_given_n(prob_1, n_sources)
@@ -211,11 +214,17 @@ class VoxelIntensityDistribution:
             -1.0 / (2 * sigma_squared) * (np.log(x) + sigma_squared / 2.0) ** 2)
 
     @staticmethod
-    def integral(func, x_low, x_high, args=None, epsrel=1e-6):
+    def integral(func, x_low, x_high, args=None, epsrel=1e-8):
+        warnings.filterwarnings('error')
         if args is None:
             return integrate.quad(func, x_low, x_high, epsrel=epsrel)[0]
         else:
-            return integrate.quad(func, x_low, x_high, args=args, epsrel=epsrel)[0]
+            try:
+                integral = integrate.quad(func, x_low, x_high, args=args, epsrel=epsrel)[0]
+            except integrate.IntegrationWarning:
+                print 'IntegrationWaring raised, using fixed quadrature instead.'
+                integral = integrate.fixed_quad(func, x_low, x_high, args=[args], n=3000)[0]
+            return integral
     # # Poisson PMF
     # @staticmethod
     # def poisson(n, local_avg_n):
