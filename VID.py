@@ -121,7 +121,6 @@ class VoxelIntensityDistribution:
                     self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt)
             if number_density < 0:
                 print "Negative number density."
-            print number_density
             # Could do this more efficient memory-wise (relevant for high numbers of convolutions here.
             n_sources = int(round(min(self.n_max, 5 + number_density * self.vol_vox * 10 * 10 ** sigma_g)))
             prob_n = self.prob_of_temp_given_n(prob_1, n_sources)
@@ -189,14 +188,20 @@ class VoxelIntensityDistribution:
     # Probability that a voxel contains N sources
     def prob_of_n_sources(self, n, mean_n, sigma_g_squared):
         # Full integral range works poorly for low sigma values.
-        # 1e3 * mean_n should be decent for sigma_g < 2.
+        # 1e3 * mean_n should be tolerable for sigma_g < 3.
         if sigma_g_squared < 0.05 ** 2:
             return stats.poisson.pmf(n, mean_n)
         else:
+            # Integration limits should somehow depend on n for efficiency,
+            # but I have not found a simple way that works.
             return \
-                integrate.quad(
+                self.integral(
                     lambda mu: 1.0 / mu * self.prob_log_normal(mu / mean_n, sigma_g_squared) * stats.poisson.pmf(n, mu),
-                    0, 20 * 10 ** np.sqrt(sigma_g_squared) * mean_n, epsrel=1e-6)[0]
+                    0, 100 * mean_n * np.sqrt(sigma_g_squared), epsrel=1e-6)
+            # return \
+            #     integrate.quad(
+            #         lambda mu: 1.0 / mu * self.prob_log_normal(mu / mean_n, sigma_g_squared) * stats.poisson.pmf(n, mu),
+            #         0, 20 * 10 ** np.sqrt(sigma_g_squared) * mean_n, epsrel=1e-6)[0]
         # if sigma_g_squared < 0.3:
         #     return \
         #         integrate.quad(
@@ -223,7 +228,7 @@ class VoxelIntensityDistribution:
                 integral = integrate.quad(func, x_low, x_high, args=args, epsrel=epsrel)[0]
             except integrate.IntegrationWarning:
                 print 'IntegrationWaring raised, using fixed quadrature instead.'
-                integral = integrate.fixed_quad(func, x_low, x_high, args=[args], n=3000)[0]
+                integral = integrate.fixed_quad(func, x_low, x_high, args=[args], n=4000)[0]
             return integral
     # # Poisson PMF
     # @staticmethod
