@@ -76,7 +76,7 @@ def get_inv_cdf(func, edges, log=True, args=None):
     return inv_cdf_func
 
 
-def vid_from_cube(cube_name=None, cube=None, temp_range=None, add_noise=False, noise_temp=0):
+def vid_from_cube(cube_name=None, cube=None, temp_range=None, add_noise=False, noise_temp=0, subtract_mean=False):
     if temp_range is None:
         n = 100
         temp_range = np.logspace(-9, -4, n + 1)
@@ -87,6 +87,8 @@ def vid_from_cube(cube_name=None, cube=None, temp_range=None, add_noise=False, n
         flat_cube = (cube + np.random.randn(*cube.shape) * noise_temp).flatten()  # cube.f.t.shape
     else:
         flat_cube = cube.flatten()
+    if subtract_mean:
+        flat_cube = flat_cube - np.mean(flat_cube)
     my_hist = np.histogram((flat_cube + 1e-12) * 1e-6, bins=temp_range)[0]
     n_vox = len(cube.flatten())
     dtemp_times_n_vox = (temp_range[1:] - temp_range[:-1]) * n_vox
@@ -219,3 +221,18 @@ def lumfunc_confidence_interval(samples, lum_range=None, percentiles=None):
 
     return np.percentile(VID.VoxelIntensityDistribution.default_luminosity_function(lum_range[:, None], samples),
                          percentiles, axis=1)
+
+
+def distribute_indices(n_indices, n_processes, my_rank):
+    divide = n_indices / n_processes
+    leftovers = n_indices % n_processes
+
+    if my_rank < leftovers:
+        my_n_cubes = divide + 1
+        my_offset = my_rank
+    else:
+        my_n_cubes = divide
+        my_offset = leftovers
+    start_index = my_rank * divide + my_offset
+    my_indices = range(start_index, start_index + my_n_cubes)
+    return my_indices
