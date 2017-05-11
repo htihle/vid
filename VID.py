@@ -93,6 +93,7 @@ class VoxelIntensityDistribution:
             prob_total = 1.0 / np.sqrt(2 * np.pi * sigma_noise ** 2) \
                          * np.exp(- self.temp_range ** 2 / (2 * sigma_noise ** 2))
         else:
+            arguments = None
             if parameters is None:
                 sigma_g = 1.0
                 if lum_func is None:
@@ -111,11 +112,11 @@ class VoxelIntensityDistribution:
 
             prob_1 = np.zeros(self.n_temp)
 
-            try:
+            if arguments is not None:
                 number_density = self.integral(lum_func, 1e0, 1e8, args=arguments)
                 prob_1[np.where(self.temp_range > 0)] = self.vol_vox / (number_density * self.x_lt) * lum_func(
                     self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt, arguments)
-            except NameError:
+            else:
                 number_density = self.integral(lum_func, 1e0, 1e8)
                 prob_1[np.where(self.temp_range > 0)] = self.vol_vox / (number_density * self.x_lt) * lum_func(
                     self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt)
@@ -219,15 +220,20 @@ class VoxelIntensityDistribution:
             -1.0 / (2 * sigma_squared) * (np.log(x) + sigma_squared / 2.0) ** 2)
 
     @staticmethod
-    def integral(func, x_low, x_high, args=None, epsrel=1e-8):
+    def integral(func, x_low, x_high, args=None, epsrel=1e-6):
         warnings.filterwarnings('error')
         if args is None:
-            return integrate.quad(func, x_low, x_high, epsrel=epsrel)[0]
+            try:
+                integral = integrate.quad(func, x_low, x_high, epsrel=epsrel)[0]
+            except integrate.IntegrationWarning:
+                print 'IntegrationWarning raised, using fixed quadrature instead.'
+                integral = integrate.fixed_quad(func, x_low, x_high, n=4000)[0]
+            return integral
         else:
             try:
                 integral = integrate.quad(func, x_low, x_high, args=args, epsrel=epsrel)[0]
             except integrate.IntegrationWarning:
-                print 'IntegrationWaring raised, using fixed quadrature instead.'
+                print 'IntegrationWarning raised, using fixed quadrature instead.'
                 integral = integrate.fixed_quad(func, x_low, x_high, args=[args], n=4000)[0]
             return integral
     # # Poisson PMF
