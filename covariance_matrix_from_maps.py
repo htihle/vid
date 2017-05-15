@@ -41,11 +41,12 @@ x, y, z = my_vid.get_grid(10)
 ps_args = dict(alpha=alpha_ps, cutoff=cutoff)
 my_mapmaker = MapMaker.MapMaker(x, y, z)
 for i in range(my_n_cosmologies):
-    cube = my_mapmaker.generate_cube(sigma_g=fiducial_values[-1], lum_args=fiducial_values,
-                                     ps_args=ps_args, save_cube=False)[0] * 1e-6
-    gc.collect()
-    cube_hist[i, :] = np.histogram(cube.flatten(), bins=bin_edges)[0] - model_hist
+    cube_hist[i, :] = np.histogram((my_mapmaker.generate_cube(sigma_g=fiducial_values[-1], lum_args=fiducial_values,
+                                     ps_args=ps_args, save_cube=False)[0] * 1e-6).flatten(), bins=bin_edges)[0] \
+                      - model_hist
     indep_hist[i, :] = np.histogram(inv_cdf(np.random.rand(samples_with_sources)), bins=bin_edges)[0] - model_hist
+    gc.collect()
+
 if rank == 0:
     recvbuf = np.empty([size * my_n_cosmologies, n_bins], dtype='i')
 comm.Gather(cube_hist, recvbuf, root=0)
