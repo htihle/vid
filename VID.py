@@ -228,6 +228,7 @@ class VoxelIntensityDistribution:
             except integrate.IntegrationWarning:
                 print 'IntegrationWarning raised, using fixed quadrature instead.'
                 integral = integrate.fixed_quad(func, x_low, x_high, n=4000)[0]
+            warnings.filterwarnings('default')
             return integral
         else:
             try:
@@ -235,6 +236,7 @@ class VoxelIntensityDistribution:
             except integrate.IntegrationWarning:
                 print 'IntegrationWarning raised, using fixed quadrature instead.'
                 integral = integrate.fixed_quad(func, x_low, x_high, args=[args], n=4000)[0]
+            warnings.filterwarnings('default')
             return integral
     # # Poisson PMF
     # @staticmethod
