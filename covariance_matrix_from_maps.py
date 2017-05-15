@@ -63,11 +63,11 @@ if rank == 0:
 
 if rank == 0:
     plt.figure()
-    plt.imshow(cov)
+    plt.imshow(cov, interpolation='none')
     plt.colorbar()
 
     plt.figure()
-    plt.imshow(cov_indep)
+    plt.imshow(cov_indep, interpolation='none')
     plt.colorbar()
 
     plt.show()

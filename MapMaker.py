@@ -12,7 +12,7 @@ import ast
 
 
 # Class for generating maps used for vid-analysis. Does not take into account the change in redshift,
-# but assumes a rectangular grid of voxels. Note that x, y and z are arrays with the voxel intersections,
+# but assumes a rectangular grid of voxels. Note that x, y and z are arrays with the voxel centers,
 # not the voxel centers.
 class MapMaker:
 
@@ -38,7 +38,6 @@ class MapMaker:
         else:
             # ps_values = P(k) = volume < |d_k|^2 >
             ps_values = self.normalize_power_spectrum(sigma_g, power_spectrum_function, *args, **kwargs)
-
         field = np.random.randn(number_of_maps, self.n_x, self.n_y, self.n_z, 2)
 
         fft_field = np.zeros((number_of_maps, self.n_x, self.n_y, self.n_z), dtype=complex)
@@ -49,7 +48,7 @@ class MapMaker:
                        * np.sqrt(ps_values[None] / self.volume)
 
         # Multiply by n_x * n_y * n_z, because inverse function in python divides by N, but that is
-        # not in my cosmological convention
+        # not in our convention for cosmology
         out_map = np.real(np.fft.ifftn(fft_field, axes=(1, 2, 3))) * self.n_x * self.n_y * self.n_z
         print "sigma = ", out_map.flatten().std()
         print "sigma_g =", sigma_g
@@ -81,7 +80,8 @@ class MapMaker:
 
     # Generates a custom cube from a luminosity function and a power spectrum.
     def generate_cube(self, lum_func=None, power_spectrum=None, sigma_g=1.0,
-                      parameterfile='parameters.ini', cubename='custom_cube', lum_args=None, ps_args=None):
+                      parameterfile='parameters.ini', cubename='custom_cube',
+                      lum_args=None, ps_args=None, save_cube=True):
         if power_spectrum is None:
             power_spectrum = tools.power_law_ps
         if ps_args is None:
@@ -122,8 +122,8 @@ class MapMaker:
                 for k in range(self.n_z):
                     lum_map[i, j, k] = lum_func_cdf(np.random.uniform(size=int(source_map[i, j, k]))).sum()
         temp_map = vid.x_lt / vid.vol_vox * lum_map * 1e6
-
-        if not os.path.isdir('cubes/'):
-            os.makedirs('cubes/')
-        np.savez("cubes/" + cubename, t=temp_map)
-
+        if save_cube:
+            if not os.path.isdir('cubes/'):
+                os.makedirs('cubes/')
+            np.savez("cubes/" + cubename, t=temp_map, x=self.x, y=self.y, z=self.z)
+        return temp_map, self.x, self.y, self.z
