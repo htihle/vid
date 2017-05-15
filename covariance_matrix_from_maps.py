@@ -61,12 +61,13 @@ if rank == 0:
     cov_indep = np.cov(recvbuf, rowvar=False)
     print cov_indep
 
-plt.figure()
-plt.imshow(cov)
-plt.colorbar()
+if rank == 0:
+    plt.figure()
+    plt.imshow(cov)
+    plt.colorbar()
 
-plt.figure()
-plt.imshow(cov_indep)
-plt.colorbar()
+    plt.figure()
+    plt.imshow(cov_indep)
+    plt.colorbar()
 
-plt.show()
+    plt.show()
