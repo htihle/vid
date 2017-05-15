@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import gc
 from mpi4py import MPI
 
 import VID
@@ -42,7 +43,7 @@ my_mapmaker = MapMaker.MapMaker(x, y, z)
 for i in range(my_n_cosmologies):
     cube = my_mapmaker.generate_cube(sigma_g=fiducial_values[-1], lum_args=fiducial_values,
                                      ps_args=ps_args, save_cube=False)[0] * 1e-6
-
+    gc.collect()
     cube_hist[i, :] = np.histogram(cube.flatten(), bins=bin_edges)[0] - model_hist
     indep_hist[i, :] = np.histogram(inv_cdf(np.random.rand(samples_with_sources)), bins=bin_edges)[0] - model_hist
 if rank == 0:
@@ -61,13 +62,15 @@ if rank == 0:
     cov_indep = np.cov(recvbuf, rowvar=False)
     print cov_indep
 
+cov_divisor = np.sqrt(np.outer(model_hist, model_hist))
+
 if rank == 0:
     plt.figure()
-    plt.imshow(cov, interpolation='none')
+    plt.imshow(cov / cov_divisor, interpolation='none')
     plt.colorbar()
 
     plt.figure()
-    plt.imshow(cov_indep, interpolation='none')
+    plt.imshow(cov_indep / cov_divisor, interpolation='none')
     plt.colorbar()
 
     plt.show()
