@@ -44,13 +44,17 @@ def generate_poisson_map(lambda_map):
 
 
 # Inverse cumulative distribution function, used for inversion sampling of any distribution.
-def get_inv_cdf(func, edges, log=True, args=None):
+def get_inv_cdf(func, edges, log=True, args=None, return_norm=False):
     if log:
         n_cmf = 5000
         cdf = np.zeros(n_cmf)
         log_x = np.linspace(np.log10(edges[0]), np.log10(edges[1]), n_cmf)
-        for i in range(n_cmf):
-            cdf[i] = integrate.quad(func, 10 ** log_x[0], 10 ** log_x[i], epsrel=1e-9, args=args)[0]
+        if args is None:
+            for i in range(n_cmf):
+                cdf[i] = integrate.quad(func, 10 ** log_x[0], 10 ** log_x[i], epsrel=1e-9)[0]
+        else:
+            for i in range(n_cmf):
+                cdf[i] = integrate.quad(func, 10 ** log_x[0], 10 ** log_x[i], epsrel=1e-9, args=args)[0]
 
         norm = cdf[-1]
         if norm < 0.99 or norm > 1.01:
@@ -63,17 +67,22 @@ def get_inv_cdf(func, edges, log=True, args=None):
         n_cmf = 5000
         cdf = np.zeros(n_cmf)
         x = np.linspace(edges[0], edges[1], n_cmf)
-        for i in range(n_cmf):
-            cdf[i] = integrate.quad(func, x[0], x[i], epsrel=1e-9, args=args)[0]
-
+        if args is None:
+            for i in range(n_cmf):
+                cdf[i] = integrate.quad(func, x[0], x[i], epsrel=1e-9)[0]
+        else:
+            for i in range(n_cmf):
+                cdf[i] = integrate.quad(func, x[0], x[i], epsrel=1e-9, args=args)[0]
         norm = cdf[-1]
         if norm < 0.99 or norm > 1.01:
             print "Pdf not exactly normalized on this interval, renormalizing. Norm = ", norm
         cdf /= norm
 
         inv_cdf_func = interpolate.interp1d(cdf, x)
-
-    return inv_cdf_func
+    if return_norm:
+        return inv_cdf_func, norm
+    else:
+        return inv_cdf_func
 
 
 def vid_from_cube(cube_name=None, cube=None, temp_range=None, add_noise=False, noise_temp=0, subtract_mean=False):
@@ -236,3 +245,14 @@ def distribute_indices(n_indices, n_processes, my_rank):
     start_index = my_rank * divide + my_offset
     my_indices = range(start_index, start_index + my_n_cubes)
     return my_indices
+
+
+def sample_from_vid(parameters, edges=None):
+    if edges is None:
+        edges = [1e-9, 5e-4]
+
+    my_vid = VID.VoxelIntensityDistribution()
+
+    vid = my_vid.calculate_vid(parameters=parameters, check_normalization=True)
+    vid_func = interpolate.interp1d(my_vid.temp_range, vid)
+    return get_inv_cdf(vid_func, edges=edges, return_norm=True)
