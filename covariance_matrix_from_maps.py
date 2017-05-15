@@ -62,13 +62,16 @@ if rank == 0:
     cov_indep = np.cov(recvbuf, rowvar=False)
     print cov_indep
 
-cov_divisor = np.sqrt(np.outer(model_hist, model_hist))
+if rank == 0:
+    cov_divisor = np.sqrt(np.outer(model_hist, model_hist))
+    np.save('cov_div', cov_divisor)
+    np.save('cov',  cov)
+    np.save('cov_indep', cov_indep)
 
 if rank == 0:
     plt.figure()
     plt.imshow(cov / cov_divisor, interpolation='none')
     plt.colorbar()
-
     plt.figure()
     plt.imshow(cov_indep / cov_divisor, interpolation='none')
     plt.colorbar()
