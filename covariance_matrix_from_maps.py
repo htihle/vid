@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import gc
 from mpi4py import MPI
+from memory_profiler import profile
 
 import VID
 import tools
@@ -29,8 +30,6 @@ my_vid = VID.VoxelIntensityDistribution()
 
 bin_edges, bin_centers, bin_spacings = tools.log_bins(1e-5, 1e-4, n_bins)
 
-cube_hist = np.zeros((my_n_cosmologies, n_bins), dtype='i')
-indep_hist = np.zeros((my_n_cosmologies, n_bins), dtype='i')
 recvbuf = None
 
 model_hist = my_vid.calculate_vid(parameters=fiducial_values, temp_array=bin_centers) * bin_spacings * n_samples
@@ -40,12 +39,29 @@ samples_with_sources = int(round(n_samples * norm))
 x, y, z = my_vid.get_grid(10)
 ps_args = dict(alpha=alpha_ps, cutoff=cutoff)
 my_mapmaker = MapMaker.MapMaker(x, y, z)
-for i in range(my_n_cosmologies):
-    cube_hist[i, :] = np.histogram((my_mapmaker.generate_cube(sigma_g=fiducial_values[-1], lum_args=fiducial_values,
-                                     ps_args=ps_args, save_cube=False)[0] * 1e-6).flatten(), bins=bin_edges)[0] \
-                      - model_hist
-    indep_hist[i, :] = np.histogram(inv_cdf(np.random.rand(samples_with_sources)), bins=bin_edges)[0] - model_hist
-    gc.collect()
+
+# cube_hist = np.zeros((my_n_cosmologies, n_bins), dtype='i')
+# indep_hist = np.zeros((my_n_cosmologies, n_bins), dtype='i')
+# for i in range(my_n_cosmologies):
+#     cube_hist[i, :] = np.histogram((my_mapmaker.generate_cube(sigma_g=fiducial_values[-1], lum_args=fiducial_values,
+#                                                               ps_args=ps_args, save_cube=False)[0] * 1e-6).flatten(),
+#                                    bins=bin_edges)[0] \
+#                       - model_hist
+#     indep_hist[i, :] = np.histogram(inv_cdf(np.random.rand(samples_with_sources)), bins=bin_edges)[0] - model_hist
+#     gc.collect()
+@profile
+def get_histograms():
+    cube_hist = np.zeros((my_n_cosmologies, n_bins), dtype='i')
+    indep_hist = np.zeros((my_n_cosmologies, n_bins), dtype='i')
+    for i in range(my_n_cosmologies):
+        cube_hist[i, :] = np.histogram((my_mapmaker.generate_cube(sigma_g=fiducial_values[-1], lum_args=fiducial_values,
+                                         ps_args=ps_args, save_cube=False)[0] * 1e-6).flatten(), bins=bin_edges)[0] \
+                          - model_hist
+        indep_hist[i, :] = np.histogram(inv_cdf(np.random.rand(samples_with_sources)), bins=bin_edges)[0] - model_hist
+        gc.collect()
+    return cube_hist, indep_hist
+
+cube_hist, indep_hist = get_histograms()
 
 if rank == 0:
     recvbuf = np.empty([size * my_n_cosmologies, n_bins], dtype='i')
