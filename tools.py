@@ -47,38 +47,25 @@ def generate_poisson_map(lambda_map):
 def get_inv_cdf(func, edges, log=True, args=None, return_norm=False):
     if log:
         n_cmf = 5000
-        cdf = np.zeros(n_cmf)
-        log_x = np.linspace(np.log10(edges[0]), np.log10(edges[1]), n_cmf)
-        if args is None:
-            for i in range(n_cmf):
-                cdf[i] = integrate.quad(func, 10 ** log_x[0], 10 ** log_x[i], epsrel=1e-9)[0]
-        else:
-            for i in range(n_cmf):
-                cdf[i] = integrate.quad(func, 10 ** log_x[0], 10 ** log_x[i], epsrel=1e-9, args=args)[0]
-
-        norm = cdf[-1]
-        if norm < 0.99 or norm > 1.01:
-            print "Pdf not exactly normalized on this interval, renormalizing. Norm = ", norm
-
-        cdf /= norm
-
-        inv_cdf_func = interpolate.interp1d(cdf, 10 ** log_x)
+        x = np.logspace(np.log10(edges[0]), np.log10(edges[1]), n_cmf)
     else:
-        n_cmf = 5000
-        cdf = np.zeros(n_cmf)
+        n_cmf = 10000
         x = np.linspace(edges[0], edges[1], n_cmf)
-        if args is None:
-            for i in range(n_cmf):
-                cdf[i] = integrate.quad(func, x[0], x[i], epsrel=1e-9)[0]
-        else:
-            for i in range(n_cmf):
-                cdf[i] = integrate.quad(func, x[0], x[i], epsrel=1e-9, args=args)[0]
-        norm = cdf[-1]
-        if norm < 0.99 or norm > 1.01:
-            print "Pdf not exactly normalized on this interval, renormalizing. Norm = ", norm
-        cdf /= norm
+    if args is None:
+        f_x = func(x)
+    else:
+        f_x = func(x, args)
 
-        inv_cdf_func = interpolate.interp1d(cdf, x)
+    cdf = integrate.cumtrapz(f_x, x, initial=0)
+
+    norm = cdf[-1]
+    if norm < 0.99 or norm > 1.01:
+        print "Pdf not exactly normalized on this interval, renormalizing. Norm = ", norm
+
+    cdf /= norm
+
+    inv_cdf_func = interpolate.interp1d(cdf, x)
+
     if return_norm:
         return inv_cdf_func, norm
     else:
