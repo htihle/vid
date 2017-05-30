@@ -84,7 +84,8 @@ class VoxelIntensityDistribution:
     # Function that actually calculates the vid. Can take an array of temperatures to
     # return the vid at those temperatures. Slightly complicated default behaviour with many different cases.
 
-    def calculate_vid(self, lum_func=None, parameters=None, temp_array=None, check_normalization=False, sigma_noise=None):
+    def calculate_vid(self, lum_func=None, parameters=None, temp_array=None,
+                      check_normalization=False, sigma_noise=None, bin_counts=False, subtract_mean_temp=False):
         if sigma_noise is None:
             if (self.mode == 'noise') or (self.mode == 's+n'):
                 sigma_noise = self.sigma_noise
@@ -122,7 +123,7 @@ class VoxelIntensityDistribution:
                     self.temp_range[np.where(self.temp_range > 0)] * self.vol_vox / self.x_lt)
             if number_density < 0:
                 print "Negative number density."
-            # Could do this more efficient memory-wise (relevant for high numbers of convolutions here.
+            # Could do this more efficient memory-wise (relevant for high numbers of convolutions) here.
             n_sources = int(round(min(self.n_max, 5 + number_density * self.vol_vox * 10 * 10 ** sigma_g)))
             prob_n = self.prob_of_temp_given_n(prob_1, n_sources)
             prob_signal = np.zeros(self.n_temp)
@@ -135,6 +136,10 @@ class VoxelIntensityDistribution:
                              * np.exp(- self.temp_range ** 2 / (2 * sigma_noise ** 2))
                 prob_total = self.prob_of_n_sources(0, number_density * self.vol_vox, sigma_g ** 2) * prob_noise \
                              + fft.fftshift(np.abs(fft.irfft(fft.rfft(prob_signal) * fft.rfft(prob_noise))) * self.dtemp)
+                if subtract_mean_temp:
+                    mean_temp = self.dtemp * np.sum(self.temp_range * prob_total)
+                    self.temp_range -= mean_temp
+                    print "Subtracted mean temperature: ", mean_temp
             elif self.mode == 'signal':
                 prob_total = prob_signal
 
@@ -147,11 +152,20 @@ class VoxelIntensityDistribution:
                 print "Probability of empty voxel", prob_0
                 print "Sum is:", norm + prob_0
         if temp_array is None:
-            return prob_total
+            return prob_total, self.temp_range
         else:  # Interpolate in log-space ?
             p_func = interpolate.interp1d(self.temp_range,
                                           prob_total)  # interpolate.splrep(self.temp_range, prob_signal, s=0)
-            return p_func(temp_array)  # interpolate.splev(temp_array, p_func, der=0)
+            if bin_counts:
+                # If bin_count is true, then temp_array is interpreted as the bin edges, not the bin centers.
+                # Also, returns bin count per sample!
+                #cum_int = integrate.cumtrapz(p_func(temp_array), temp_array, initial=0)
+                bin_count = np.zeros(len(temp_array) - 1)
+                for i in xrange(len(temp_array) - 1):
+                    bin_count[i] = integrate.quad(p_func, temp_array[i], temp_array[i + 1], epsrel=1e-9)[0]
+                return bin_count
+            else:
+                return p_func(temp_array)  # interpolate.splev(temp_array, p_func, der=0)
 
     # Probability distribution of expected temperature from N sources given P1
     # (= Probability distribution of expected temperature from 1 source)

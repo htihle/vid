@@ -49,16 +49,18 @@ my_mapmaker = MapMaker.MapMaker(x, y, z)
 #                       - model_hist
 #     indep_hist[i, :] = np.histogram(inv_cdf(np.random.rand(samples_with_sources)), bins=bin_edges)[0] - model_hist
 #     gc.collect()
-@profile
+
+
 def get_histograms():
     cube_hist = np.zeros((my_n_cosmologies, n_bins), dtype='i')
     indep_hist = np.zeros((my_n_cosmologies, n_bins), dtype='i')
     for i in range(my_n_cosmologies):
-        cube_hist[i, :] = np.histogram((my_mapmaker.generate_cube(sigma_g=fiducial_values[-1], lum_args=fiducial_values,
-                                         ps_args=ps_args, save_cube=False)[0] * 1e-6).flatten(), bins=bin_edges)[0] \
-                          - model_hist
-        indep_hist[i, :] = np.histogram(inv_cdf(np.random.rand(samples_with_sources)), bins=bin_edges)[0] - model_hist
-        gc.collect()
+        cube = (my_mapmaker.generate_cube(sigma_g=fiducial_values[-1], lum_args=fiducial_values,
+                                          ps_args=ps_args, save_cube=False)[0] * 1e-6).flatten() \
+               + np.random.randn(n_samples) * 15.3 * 1e-6
+        cube_hist[i, :] = np.histogram(cube, bins=bin_edges)[0]
+        indep_hist[i, :] = np.histogram(inv_cdf(np.random.rand(np.random.binomial(n_samples, norm))),
+                                        bins=bin_edges)[0]
     return cube_hist, indep_hist
 
 cube_hist, indep_hist = get_histograms()
@@ -80,7 +82,7 @@ if rank == 0:
     print cov_indep
 
 if rank == 0:
-    cov_divisor = np.sqrt(np.outer(model_hist, model_hist))
+    cov_divisor = np.sqrt(np.outer(model_hist * (1 - model_hist/n_samples), model_hist * (1 - model_hist/n_samples)))
     np.save('cov_div', cov_divisor)
     np.save('cov',  cov)
     np.save('cov_indep', cov_indep)

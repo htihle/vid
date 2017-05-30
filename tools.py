@@ -108,30 +108,29 @@ def autocorr_from_cubes(cubename, temp_range=None, n_cubes=25, label=None):
     n = len(temp_range) - 1
     cube = np.load("cubes/" + cubename + ".npz")
     myhist = np.histogram((cube.f.t.flatten() + 1e-12) * 1e-6, bins=temp_range)[0]
-    n_vox = len(cube.f.t.flatten())
-    dtemp_times_n_vox = (temp_range[1:] - temp_range[:-1]) * n_vox
+    n_vox_tot = len(cube.f.t.flatten())
+    #dtemp_times_n_vox = (temp_range[1:] - temp_range[:-1]) * n_vox
     x = (temp_range[1:] + temp_range[:-1]) / 2
     dex = np.log10(x[1]) - np.log10(x[0])
-    avg = myhist / dtemp_times_n_vox
+    avg = myhist
 
-    vid = []
+    B_i = []
     for i in range(n_cubes):
         cube = np.load("cubes/" + cubename + "_" + str(i) + ".npz")
         B = np.histogram((cube.f.t.flatten() + 1e-12) * 1e-6, bins=temp_range)[0]
         n_vox = len(cube.f.t.flatten())
-        dtemp_times_n_vox = (temp_range[1:] - temp_range[:-1]) * n_vox
-        x = (temp_range[1:] + temp_range[:-1]) / 2
-        vid.append(B / dtemp_times_n_vox)
-    vid = np.array(vid)
+        # dtemp_times_n_vox = (temp_range[1:] - temp_range[:-1]) * n_vox
+        # x = (temp_range[1:] + temp_range[:-1]) / 2
+        B_i.append(B)
+    B_i = np.array(B_i)
 
-    sigma = vid.std(0)
+    sigma = B_i.std(0)
     n_dt = int(0.9*n)
 
     autocorr = np.zeros(n_dt)
 
     for i in range(n_cubes):
-        residual = (vid[i]-avg)/sigma
-
+        residual = (B_i[i] - avg * float(n_vox) / n_vox_tot)/sigma
         autocorr += np.correlate(residual, residual, 'full')[len(residual):len(residual) + n_dt]
 
     autocorr /= n_cubes * n
