@@ -136,10 +136,6 @@ class VoxelIntensityDistribution:
                              * np.exp(- self.temp_range ** 2 / (2 * sigma_noise ** 2))
                 prob_total = self.prob_of_n_sources(0, number_density * self.vol_vox, sigma_g ** 2) * prob_noise \
                              + fft.fftshift(np.abs(fft.irfft(fft.rfft(prob_signal) * fft.rfft(prob_noise))) * self.dtemp)
-                if subtract_mean_temp:
-                    mean_temp = self.dtemp * np.sum(self.temp_range * prob_total)
-                    self.temp_range -= mean_temp
-                    print "Subtracted mean temperature: ", mean_temp
             elif self.mode == 'signal':
                 prob_total = prob_signal
 
@@ -151,14 +147,20 @@ class VoxelIntensityDistribution:
                 prob_0 = self.prob_of_n_sources(0, number_density * self.vol_vox, sigma_g ** 2)
                 print "Probability of empty voxel", prob_0
                 print "Sum is:", norm + prob_0
+        mean_temp = 0
+        if subtract_mean_temp:
+            mean_temp = self.dtemp * np.sum(self.temp_range * prob_total)
+            if np.abs(mean_temp) > 1e-4:
+                print "Large mean temp: ", mean_temp
+            # print "Subtracted mean temperature: ", mean_temp
         if temp_array is None:
-            return prob_total, self.temp_range
+            return prob_total, self.temp_range - mean_temp
         else:  # Interpolate in log-space ?
-            p_func = interpolate.interp1d(self.temp_range,
+            p_func = interpolate.interp1d(self.temp_range - mean_temp,
                                           prob_total)  # interpolate.splrep(self.temp_range, prob_signal, s=0)
             if bin_counts:
                 # If bin_count is true, then temp_array is interpreted as the bin edges, not the bin centers.
-                # Also, returns bin count per sample!
+                # Also, returns bin count per sample voxel!
                 #cum_int = integrate.cumtrapz(p_func(temp_array), temp_array, initial=0)
                 bin_count = np.zeros(len(temp_array) - 1)
                 for i in xrange(len(temp_array) - 1):

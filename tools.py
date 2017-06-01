@@ -72,7 +72,8 @@ def get_inv_cdf(func, edges, log=True, args=None, return_norm=False):
         return inv_cdf_func
 
 
-def vid_from_cube(cube_name=None, cube=None, temp_range=None, add_noise=False, noise_temp=0, subtract_mean=False):
+def vid_from_cube(cube_name=None, cube=None, temp_range=None, add_noise=False, noise_temp=0, subtract_mean=False,
+                  bin_count=False):
     if temp_range is None:
         n = 100
         temp_range = np.logspace(-9, -4, n + 1)
@@ -89,8 +90,10 @@ def vid_from_cube(cube_name=None, cube=None, temp_range=None, add_noise=False, n
     n_vox = len(cube.flatten())
     dtemp_times_n_vox = (temp_range[1:] - temp_range[:-1]) * n_vox
     x = (temp_range[1:] + temp_range[:-1]) / 2
-
-    return my_hist / dtemp_times_n_vox, x
+    if bin_count:
+        return my_hist, x
+    else:
+        return my_hist / dtemp_times_n_vox, x
 
 
 def power_law_ps(k, alpha=0, cutoff=0):  # Always cuts zero-frequency.
