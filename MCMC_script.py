@@ -14,7 +14,7 @@ my_rank, size = (comm.Get_rank(), comm.Get_size())
 
 
 def my_lnprob(par, n_vox, vid, data):
-    if (par[-1] < 0) or (par[0] < 0) or (par[1] < 0):
+    if (par[-1] < 0) or (par[0] < 0) or (par[1] < 2e4) or (par[2] < -3.5):
         return - np.inf
     parm = np.zeros(5)
     parm[0:3] = par[0:3]
@@ -28,7 +28,7 @@ def my_lnprob(par, n_vox, vid, data):
         print "RuntimeWarning caught, returning - np.inf"
         print "parm = ", parm
         return_value = - np.inf
-        warnings.filterwarnings('default')
+    warnings.filterwarnings('default')
     return return_value
 
 my_vid = VID.VoxelIntensityDistribution()
@@ -43,15 +43,11 @@ n_cubes = 25
 my_indices = tools.distribute_indices(n_cubes, size, my_rank)
 print "Rank %d with indices" % my_rank, my_indices
 
-# cita_vid = tools.vid_from_cube('cubes/cita_cube.npz', temp_range=bin_edges, add_noise=True,
-#                                noise_temp=15.3)[0]
 n_vox = 1000 * 25 * 25
 
 data, x = tools.vid_from_cube('cubes/cita_cube_' + str(2) + '.npz', temp_range=bin_edges, add_noise=True,
-                                  noise_temp=15.3, subtract_mean=True, bin_count=True)
+                              noise_temp=15.3, subtract_mean=True, bin_count=True)
 
-
-# sigma_squared = cita_vid / (n_vox * bin_spacings)
 
 for i in my_indices:
     data, x = tools.vid_from_cube('cubes/cita_cube_' + str(i) + '.npz', temp_range=bin_edges, add_noise=True,
