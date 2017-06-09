@@ -33,7 +33,7 @@ def my_lnprob_fixedcut(par, n_vox, vid, data):
 
 
 def my_lnprob(par, n_vox, vid, data):
-    if (par[-1] < 0) or (par[0] < 0) or (par[1] < 2e4) or (par[2] < -3.5) or (par[3] < 1e1):
+    if (par[-1] < 0) or (par[0] < 0) or (par[1] < 2e4) or (par[2] < -2.5) or (par[3] < 1e3):
         return - np.inf
     B_i = vid.calculate_vid(parameters=par, temp_array=bin_edges, subtract_mean_temp=True, bin_counts=True) * n_vox
     warnings.filterwarnings('error')
@@ -41,7 +41,7 @@ def my_lnprob(par, n_vox, vid, data):
         return_value = -np.sum((B_i - data) ** 2 / (2 * B_i))
     except RuntimeWarning:
         print "RuntimeWarning caught, returning - np.inf"
-        print "parm = ", par
+        print "par = ", par
         return_value = - np.inf
     warnings.filterwarnings('default')
     return return_value
@@ -74,5 +74,5 @@ for i in my_indices:
     # MCMC.do_mcmc_sampling(my_lnprob_fixedcut, np.array(best_fit_fixedcut), (n_vox, my_vid, data), 10, 20, threads=4,
     #                       comment='cube' + str(i))
 
-    MCMC.do_mcmc_sampling(my_lnprob, np.array(best_fit), (n_vox, my_vid, data), 10, 20, threads=4,
+    MCMC.do_mcmc_sampling(my_lnprob, np.array(best_fit), (n_vox, my_vid, data), 10, 20, threads=2,
                           comment='cube' + str(i))

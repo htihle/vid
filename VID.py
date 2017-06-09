@@ -151,8 +151,8 @@ class VoxelIntensityDistribution:
         if subtract_mean_temp:
             mean_temp = self.dtemp * np.sum(self.temp_range * prob_total)
             if np.abs(mean_temp) > 1e-4:
-                print "Large mean temp: ", mean_temp
-            # print "Subtracted mean temperature: ", mean_temp
+                print "Large mean temp: ", mean_temp, "returning 0"
+                return 0
         if temp_array is None:
             return prob_total, self.temp_range - mean_temp
         else:  # Interpolate in log-space ?
