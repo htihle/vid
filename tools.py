@@ -177,6 +177,10 @@ def calculate_chi_squared(data, model, std_2=1.0):
     return np.sum((data - model) ** 2 / std_2)
 
 
+def calculate_chi(data, model, std_2=1.0):
+    return np.sum((data - model) / np.sqrt(std_2))
+
+
 def noise_vid(temp, sigma_noise=1.0):
     return 1.0 / np.sqrt(2 * np.pi * sigma_noise ** 2) * np.exp(- temp ** 2 / (2 * sigma_noise ** 2))
 

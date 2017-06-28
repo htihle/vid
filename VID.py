@@ -18,7 +18,7 @@ class VoxelIntensityDistribution:
     mpc = 3.086e22  # 1 mpc = 3.086e22 m
     solar_lum = 3.848e26  # W
 
-    def __init__(self, parameterfile=None):
+    def __init__(self, parameterfile=None, n_temp=None):
         config = ConfigParser.ConfigParser()
         if parameterfile is None:
             config.read('parameters.ini')
@@ -28,7 +28,10 @@ class VoxelIntensityDistribution:
         self.config = config
         self.mode = config.get('Grid', 'mode')
         temp_max = float(config.get('Grid', 'temp_max'))
-        self.n_temp = int(config.get('Grid', 'n_temp'))
+        if n_temp is None:
+            self.n_temp = int(config.get('Grid', 'n_temp'))
+        else:
+            self.n_temp = n_temp
         if (self.mode == 'noise') or (self.mode == 's+n'):
             self.temp_range = np.linspace(-temp_max, temp_max, self.n_temp)
             self.dtemp = self.temp_range[1] - self.temp_range[0]
@@ -164,7 +167,7 @@ class VoxelIntensityDistribution:
                 #cum_int = integrate.cumtrapz(p_func(temp_array), temp_array, initial=0)
                 bin_count = np.zeros(len(temp_array) - 1)
                 for i in xrange(len(temp_array) - 1):
-                    bin_count[i] = integrate.quad(p_func, temp_array[i], temp_array[i + 1], epsrel=1e-9)[0]
+                    bin_count[i] = integrate.quad(p_func, temp_array[i], temp_array[i + 1], epsrel=1e-6)[0]
                 return bin_count
             else:
                 return p_func(temp_array)  # interpolate.splev(temp_array, p_func, der=0)
