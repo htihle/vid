@@ -92,10 +92,11 @@ class VoxelIntensityDistribution:
         if sigma_noise is None:
             if (self.mode == 'noise') or (self.mode == 's+n'):
                 sigma_noise = self.sigma_noise
-
+        else:
+            sigma_noise *= 1e-6
         if self.mode == 'noise':
             prob_total = 1.0 / np.sqrt(2 * np.pi * sigma_noise ** 2) \
-                         * np.exp(- self.temp_range ** 2 / (2 * sigma_noise ** 2))
+                         * np.exp(- self.temp_range ** 2 / (2.0 * sigma_noise ** 2))
         else:
             arguments = None
             if parameters is None:
