@@ -57,9 +57,8 @@ def get_inv_cdf(func, edges, log=True, args=None, return_norm=False):
         f_x = func(x, args)
 
     cdf = integrate.cumtrapz(f_x, x, initial=0)
-
     norm = cdf[-1]
-    if norm < 0.99 or norm > 1.01:
+    if (norm < 0.99) or (norm > 1.01):
         print "Pdf not exactly normalized on this interval, renormalizing. Norm = ", norm
 
     cdf /= norm
@@ -247,5 +246,6 @@ def sample_from_vid(parameters, edges=None):
     my_vid = VID.VoxelIntensityDistribution()
 
     vid = my_vid.calculate_vid(parameters=parameters, check_normalization=True)
-    vid_func = interpolate.interp1d(my_vid.temp_range, vid)
+
+    vid_func = interpolate.interp1d(vid[1], vid[0])
     return get_inv_cdf(vid_func, edges=edges, return_norm=True)
