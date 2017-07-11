@@ -12,7 +12,7 @@ comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
 
-n_cosmologies = 200
+n_cosmologies = 100
 
 my_n_cosmologies = n_cosmologies / size
 if n_cosmologies % size > 0:
@@ -20,7 +20,7 @@ if n_cosmologies % size > 0:
 
 # print "my_n", my_n_cosmologies
 
-n_bins = 10
+n_bins = 5
 n_samples = 100000
 alpha_ps = -3
 cutoff = 1.0/40
